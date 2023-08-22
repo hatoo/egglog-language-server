@@ -1,0 +1,28 @@
+{
+    "name": "egglog-language",
+    "version": "0.0.1",
+    "author": "hatoo",
+    "license": "MIT",
+    "description": "A tiny programming language that supports Language Server Protocol",
+    "engines": {
+        "vscode": "^1.75.0"
+    },
+    "main": "./extension.js",
+    "activationEvents": [
+        "onLanguage:egglog"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "egglog",
+                "extensions": [
+                    ".egg"
+                ]
+            }
+        ]
+    },
+    "dependencies": {
+        "vscode-languageclient": "^8.1.0"
+    },
+    "private": true
+}
