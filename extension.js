@@ -7,24 +7,23 @@ let client;
 function activate(context) {
     try {
         const serverOptions = {
-            command: "node",
+            command: "cargo",
             args: [
-                context.extensionPath + "/oreore.js",
-                "--language-server"
+                "run"
             ]
         };
         const clientOptions = {
             documentSelector: [
                 {
                     scheme: "file",
-                    language: "oreore",
+                    language: "egglog",
                 }
             ],
         };
-        client = new languageclient.LanguageClient("oreore-mode", serverOptions, clientOptions);
+        client = new languageclient.LanguageClient("egglog", serverOptions, clientOptions);
         context.subscriptions.push(client.start());
     } catch (e) {
-        vscode.window.showErrorMessage("oreore-mode couldn't be started.");
+        vscode.window.showErrorMessage("egglog-language-server couldn't be started.");
     }
 }
 
