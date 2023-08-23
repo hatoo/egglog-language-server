@@ -787,7 +787,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-egglog"
 version = "0.0.1"
-source = "git+https://github.com/hatoo/tree-sitter-egglog.git#b5cc254250686011a7509e8690b287a87bfd1720"
+source = "git+https://github.com/hatoo/tree-sitter-egglog.git#45c64e5daaab67ec06821320216d40aff4b1fde8"
 dependencies = [
  "cc",
  "tree-sitter",

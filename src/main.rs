@@ -3,7 +3,7 @@ use ropey::Rope;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::Parser;
+use tree_sitter::{Parser, TreeCursor};
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -77,6 +77,70 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
         .collect()
 }
 
+// FIXME: find more better way
+fn formatting_walk(cursor: TreeCursor, src: &str, buf: &mut String) {
+    use std::fmt::Write;
+
+    let mut last = "";
+    let mut paren_level = 0;
+    for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
+        let text = n.utf8_text(src.as_bytes()).unwrap();
+
+        match text {
+            "(" => {
+                paren_level += 1;
+                if last == "(" || paren_level == 1 {
+                    write!(buf, "{}", text).unwrap();
+                } else {
+                    write!(buf, " {}", text).unwrap();
+                }
+            }
+            ")" => {
+                paren_level -= 1;
+                write!(buf, "{}", text).unwrap();
+                if paren_level == 0 {
+                    writeln!(buf).unwrap();
+                }
+            }
+            text if n.kind() == "comment" => {
+                writeln!(buf, "{}", text).unwrap();
+            }
+            text if n.kind() == "ws" => {
+                let newlines = text.chars().filter(|&c| c == '\n').count();
+
+                for _ in 1..newlines {
+                    writeln!(buf).unwrap();
+                }
+            }
+            text => {
+                if last == "(" {
+                    write!(buf, "{}", text).unwrap();
+                } else {
+                    write!(buf, " {}", text).unwrap();
+                }
+            }
+        }
+
+        last = text;
+    }
+}
+
+fn formatting(src: &str) -> String {
+    let language = tree_sitter_egglog::language();
+    let mut parser = Parser::new();
+    parser.set_language(language).unwrap();
+
+    let tree = parser.parse(src, None).unwrap();
+    let root_node = tree.root_node();
+
+    let mut buf = String::new();
+    let cursor = root_node.walk();
+
+    formatting_walk(cursor, src, &mut buf);
+
+    format!("{}\n", buf.trim())
+}
+
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) {
         self.document_map
@@ -123,6 +187,7 @@ impl LanguageServer for Backend {
                         },
                     ),
                 ),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -270,6 +335,27 @@ impl LanguageServer for Backend {
                 data: semantic_tokens,
             })))
         }
+    }
+
+    async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
+        let src = self.document_map.get(&params.text_document.uri).unwrap();
+        let fmt = formatting(&src);
+
+        let lines = src.lines().enumerate().count();
+
+        Ok(Some(vec![TextEdit {
+            range: Range {
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: lines as u32 + 1,
+                    character: 0,
+                },
+            },
+            new_text: fmt,
+        }]))
     }
 }
 
