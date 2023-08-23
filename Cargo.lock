@@ -118,6 +118,7 @@ dependencies = [
  "tower-lsp",
  "tree-sitter",
  "tree-sitter-egglog",
+ "tree-sitter-traversal",
 ]
 
 [[package]]
@@ -750,6 +751,15 @@ version = "0.0.1"
 source = "git+https://github.com/hatoo/tree-sitter-egglog.git#7b42bd8790a47a24e9ef2a7cc3dacda676d0a9f2"
 dependencies = [
  "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-traversal"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df8a158225e4a4d8505f071340bba9edd109b23f01b70540dccb7c799868f307"
+dependencies = [
  "tree-sitter",
 ]
 

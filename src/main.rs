@@ -2,6 +2,7 @@ use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tree_sitter::{Node, Parser, TreeCursor};
+use tree_sitter_traversal::{traverse, Order};
 
 #[derive(Debug)]
 struct Backend {
@@ -14,26 +15,6 @@ struct TextDocumentItem {
     version: i32,
 }
 
-fn error_nodes<'a>(cursor: &mut TreeCursor<'a>, acc: &mut Vec<Node<'a>>) {
-    if !cursor.goto_first_child() {
-        return;
-    }
-    loop {
-        let node = cursor.node();
-
-        if node.kind() == "ERROR" || node.is_missing() {
-            acc.push(node);
-        }
-        if node.has_error() {
-            error_nodes(cursor, acc);
-        }
-
-        if !cursor.goto_next_sibling() {
-            break;
-        }
-    }
-}
-
 fn diagnstics(src: &str) -> Vec<Diagnostic> {
     let language = tree_sitter_egglog::language();
     let mut parser = Parser::new();
@@ -42,10 +23,8 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
     let tree = parser.parse(src, None).unwrap();
     let root_node = tree.root_node();
 
-    let mut acc = vec![];
-    let mut cursor = root_node.walk();
-    error_nodes(&mut cursor, &mut acc);
-    acc.into_iter()
+    traverse(root_node.walk(), Order::Post)
+        .filter(|n| n.kind() == "ERROR" || n.is_missing())
         .map(|node| {
             let start = node.start_position();
             let end = node.end_position();
@@ -55,6 +34,7 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
                     .trim_end_matches(')')
                     .to_string()
             } else {
+                let mut cursor = node.walk();
                 format!(
                     "Unexpected token(s) {}",
                     node.children(&mut cursor)
