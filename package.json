@@ -17,7 +17,8 @@
                 "id": "egglog",
                 "extensions": [
                     ".egg"
-                ]
+                ],
+                "configuration": "./language-configuration.json"
             }
         ]
     },
