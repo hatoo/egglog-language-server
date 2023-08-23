@@ -10,10 +10,11 @@ use tree_sitter_traversal::{traverse, Order};
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
     SemanticTokenType::FUNCTION,
+    SemanticTokenType::TYPE,
     SemanticTokenType::VARIABLE,
+    SemanticTokenType::NUMBER,
     SemanticTokenType::STRING,
     SemanticTokenType::COMMENT,
-    SemanticTokenType::NUMBER,
     SemanticTokenType::OPERATOR,
     SemanticTokenType::PARAMETER,
 ];
@@ -247,24 +248,7 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "semantic_tokens_full")
             .await;
         let highlight_names = [
-            "keyword",
-            "attribute",
-            "constant",
-            "function.builtin",
-            "function",
-            "operator",
-            "property",
-            "punctuation",
-            "punctuation.bracket",
-            "punctuation.delimiter",
-            "string",
-            "string.special",
-            "tag",
-            "type",
-            "type.builtin",
-            "variable",
-            "variable.builtin",
-            "variable.parameter",
+            "keyword", "function", "type", "variable", "number", "string", "comment",
         ];
 
         let mut highlighter = Highlighter::new();
