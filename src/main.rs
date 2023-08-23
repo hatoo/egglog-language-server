@@ -11,6 +11,7 @@ pub const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
     SemanticTokenType::FUNCTION,
     SemanticTokenType::TYPE,
+    SemanticTokenType::DECORATOR,
     SemanticTokenType::VARIABLE,
     SemanticTokenType::NUMBER,
     SemanticTokenType::STRING,
@@ -248,7 +249,14 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "semantic_tokens_full")
             .await;
         let highlight_names = [
-            "keyword", "function", "type", "variable", "number", "string", "comment",
+            "keyword",
+            "function",
+            "type",
+            "attribute",
+            "variable",
+            "number",
+            "string",
+            "comment",
         ];
 
         let mut highlighter = Highlighter::new();
