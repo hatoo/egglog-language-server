@@ -8,12 +8,12 @@ use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, H
 use tree_sitter_traversal::{traverse, Order};
 
 pub const LEGEND_TYPE: &[SemanticTokenType] = &[
+    SemanticTokenType::KEYWORD,
     SemanticTokenType::FUNCTION,
     SemanticTokenType::VARIABLE,
     SemanticTokenType::STRING,
     SemanticTokenType::COMMENT,
     SemanticTokenType::NUMBER,
-    SemanticTokenType::KEYWORD,
     SemanticTokenType::OPERATOR,
     SemanticTokenType::PARAMETER,
 ];
@@ -247,11 +247,11 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "semantic_tokens_full")
             .await;
         let highlight_names = [
+            "keyword",
             "attribute",
             "constant",
             "function.builtin",
             "function",
-            "keyword",
             "operator",
             "property",
             "punctuation",
@@ -305,8 +305,7 @@ impl LanguageServer for Backend {
                             delta_line,
                             delta_start,
                             length: (e - s) as u32,
-                            // TODO: Use appropriate token type
-                            token_type: 2 as u32,
+                            token_type: t.0 as u32,
                             token_modifiers_bitset: 0,
                         });
                         pre_line = line;
