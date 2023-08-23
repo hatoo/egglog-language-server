@@ -23,6 +23,7 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
     let tree = parser.parse(src, None).unwrap();
     let root_node = tree.root_node();
 
+    // Fixme: Better traverse
     traverse(root_node.walk(), Order::Post)
         .filter(|n| n.kind() == "ERROR" || n.is_missing())
         .map(|node| {
