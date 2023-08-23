@@ -1,6 +1,7 @@
 (relation path (i64 i64))
 (relation edge (i64 i64))
 
+
 (rule ((edge x y))
       ((path x y)))
 
