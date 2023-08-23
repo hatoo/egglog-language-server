@@ -1,12 +1,26 @@
+use dashmap::DashMap;
+use ropey::Rope;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::{Node, Parser, TreeCursor};
+use tree_sitter::Parser;
+use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
+pub const LEGEND_TYPE: &[SemanticTokenType] = &[
+    SemanticTokenType::FUNCTION,
+    SemanticTokenType::VARIABLE,
+    SemanticTokenType::STRING,
+    SemanticTokenType::COMMENT,
+    SemanticTokenType::NUMBER,
+    SemanticTokenType::KEYWORD,
+    SemanticTokenType::OPERATOR,
+    SemanticTokenType::PARAMETER,
+];
 #[derive(Debug)]
 struct Backend {
     client: Client,
+    document_map: DashMap<Url, String>,
 }
 
 struct TextDocumentItem {
@@ -65,6 +79,8 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
 
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) {
+        self.document_map
+            .insert(params.uri.clone(), params.text.clone());
         let diagnostics = diagnstics(&params.text);
 
         self.client
@@ -82,7 +98,32 @@ impl LanguageServer for Backend {
                     TextDocumentSyncKind::FULL,
                 )),
                 // diagnostic_provider: Some(DiagnosticServerCapabilities::Simple(true)),
-                ..ServerCapabilities::default()
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(
+                        SemanticTokensRegistrationOptions {
+                            text_document_registration_options: {
+                                TextDocumentRegistrationOptions {
+                                    document_selector: Some(vec![DocumentFilter {
+                                        language: Some("egglog".to_string()),
+                                        scheme: Some("file".to_string()),
+                                        pattern: None,
+                                    }]),
+                                }
+                            },
+                            semantic_tokens_options: SemanticTokensOptions {
+                                work_done_progress_options: WorkDoneProgressOptions::default(),
+                                legend: SemanticTokensLegend {
+                                    token_types: LEGEND_TYPE.into(),
+                                    token_modifiers: vec![],
+                                },
+                                range: Some(false),
+                                full: Some(SemanticTokensFullOptions::Bool(true)),
+                            },
+                            static_registration_options: StaticRegistrationOptions::default(),
+                        },
+                    ),
+                ),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -132,6 +173,104 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "file closed!")
             .await;
     }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        self.client
+            .log_message(MessageType::INFO, "semantic_tokens_full")
+            .await;
+        let highlight_names = [
+            "attribute",
+            "constant",
+            "function.builtin",
+            "function",
+            "keyword",
+            "operator",
+            "property",
+            "punctuation",
+            "punctuation.bracket",
+            "punctuation.delimiter",
+            "string",
+            "string.special",
+            "tag",
+            "type",
+            "type.builtin",
+            "variable",
+            "variable.builtin",
+            "variable.parameter",
+        ];
+
+        let mut highlighter = Highlighter::new();
+        let language = tree_sitter_egglog::language();
+        let mut language_config =
+            HighlightConfiguration::new(language, tree_sitter_egglog::HIGHLIGHTS_QUERY, "", "")
+                .unwrap();
+
+        language_config.configure(&highlight_names);
+
+        let src = self.document_map.get(&params.text_document.uri).unwrap();
+        let rope = Rope::from_str(src.as_str());
+
+        let highlights = highlighter
+            .highlight(&language_config, src.as_bytes(), None, |_| None)
+            .unwrap();
+
+        let mut current_hightlight: Option<Highlight> = None;
+        let mut pre_line = 0;
+        let mut pre_start = 0;
+        let semantic_tokens = highlights
+            .filter_map(|h| h.ok())
+            .filter_map(|h| match h {
+                HighlightEvent::Source { start, end } => {
+                    let s = start;
+                    let e = end;
+                    let line = rope.try_byte_to_line(s).ok()? as u32;
+                    let first = rope.try_line_to_char(line as usize).ok()? as u32;
+                    let start = rope.try_byte_to_char(s).ok()? as u32 - first;
+                    let delta_line = line - pre_line;
+                    let delta_start = if delta_line == 0 {
+                        start - pre_start
+                    } else {
+                        start
+                    };
+                    if let Some(t) = current_hightlight {
+                        let ret = Some(SemanticToken {
+                            delta_line,
+                            delta_start,
+                            length: (e - s) as u32,
+                            // TODO: Use appropriate token type
+                            token_type: 2 as u32,
+                            token_modifiers_bitset: 0,
+                        });
+                        pre_line = line;
+                        pre_start = start;
+                        ret
+                    } else {
+                        None
+                    }
+                }
+                HighlightEvent::HighlightStart(highlight) => {
+                    current_hightlight = Some(highlight);
+                    None
+                }
+                HighlightEvent::HighlightEnd => {
+                    current_hightlight = None;
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        if semantic_tokens.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(SemanticTokensResult::Tokens(SemanticTokens {
+                result_id: None,
+                data: semantic_tokens,
+            })))
+        }
+    }
 }
 
 #[tokio::main]
@@ -139,6 +278,9 @@ async fn main() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
-    let (service, socket) = LspService::new(|client| Backend { client });
+    let (service, socket) = LspService::new(|client| Backend {
+        client,
+        document_map: DashMap::new(),
+    });
     Server::new(stdin, stdout, socket).serve(service).await;
 }

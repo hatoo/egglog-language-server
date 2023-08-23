@@ -11,3 +11,6 @@ tower-lsp = "0.20.0"
 tree-sitter-egglog = { git = "https://github.com/hatoo/tree-sitter-egglog.git" }
 tree-sitter = "~0.20.10"
 tree-sitter-traversal = "0.1.2"
+tree-sitter-highlight = "0.20.1"
+dashmap = "5.5.1"
+ropey = "1.6.0"

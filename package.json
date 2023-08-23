@@ -8,21 +8,16 @@
         "vscode": "^1.75.0"
     },
     "main": "./extension.js",
+    "activationEvents": [
+        "onLanguage:egglog"
+    ],
     "contributes": {
         "languages": [
             {
                 "id": "egglog",
                 "extensions": [
                     ".egg"
-                ],
-                "configuration": "./language-configuration.json"
-            }
-        ],
-        "grammars": [
-            {
-                "language": "egglog",
-                "scopeName": "source.egglog",
-                "path": "./syntaxes/egglog.tmLanguage.json"
+                ]
             }
         ]
     },
