@@ -6,13 +6,14 @@
 
 (rule ((path x y) (edge y z))
       ((path x z)))
-        
+
 (edge 1 2)
 (edge 2 3)
 (edge 3 4)
 (check (edge 1 2))
 (fail (check (path 1 2)))
-(run 3)
+
+(run 8)
 
 (print-table path)
 (check (path 1 4))
