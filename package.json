@@ -8,9 +8,6 @@
         "vscode": "^1.75.0"
     },
     "main": "./extension.js",
-    "activationEvents": [
-        "onLanguage:egglog"
-    ],
     "contributes": {
         "languages": [
             {
