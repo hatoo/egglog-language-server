@@ -80,85 +80,98 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
 }
 
 // FIXME: find more better way
-fn formatting_walk(cursor: TreeCursor, src: &str, buf: &mut String) {
-    use std::fmt::Write;
-
-    let mut emptyline = false;
-    let mut last_text = "";
-    let mut paren_level = 0;
-    for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
-        let text = n.utf8_text(src.as_bytes()).unwrap();
-
-        match text {
-            "(" => {
-                if last_text == "(" {
-                    write!(buf, "{}", text).unwrap();
-                } else if emptyline {
-                    for _ in 0..2 * paren_level {
-                        write!(buf, " ").unwrap();
-                    }
-                    write!(buf, "{}", text).unwrap();
-                } else if last_text == ")" && paren_level == 0 {
-                    writeln!(buf).unwrap();
-                    write!(buf, "{}", text).unwrap();
-                } else {
-                    write!(buf, " {}", text).unwrap();
-                }
-                emptyline = false;
-                paren_level += 1;
-            }
-            ")" => {
-                paren_level -= 1;
-                write!(buf, "{}", text).unwrap();
-                emptyline = false;
-            }
-            text if n.kind() == "comment" => {
-                if emptyline {
-                    for _ in 0..2 * paren_level {
-                        write!(buf, " ").unwrap();
-                    }
-                } else {
-                    write!(buf, " ").unwrap();
-                }
-                writeln!(buf, "{}", text).unwrap();
-                emptyline = true;
-            }
-            text if n.kind() == "ws" => {
-                let newlines = text.chars().filter(|&c| c == '\n').count();
-                let n = if emptyline { 1 } else { 0 };
-
-                for _ in n..newlines {
-                    writeln!(buf).unwrap();
-                    emptyline = true;
-                }
-            }
-            text => {
-                if last_text == "(" {
-                    write!(buf, "{}", text).unwrap();
-                } else {
-                    write!(buf, " {}", text).unwrap();
-                }
-            }
-        }
-
-        last_text = text;
-    }
-}
-
-fn formatting(src: &str) -> String {
+fn formatting(src: &str, tab_width: usize) -> String {
     let language = tree_sitter_egglog::language();
     let mut parser = Parser::new();
     parser.set_language(language).unwrap();
 
+    let src = src.trim();
     let tree = parser.parse(src, None).unwrap();
     let root_node = tree.root_node();
 
     let mut buf = String::new();
     let cursor = root_node.walk();
 
-    formatting_walk(cursor, src, &mut buf);
+    {
+        use std::fmt::Write;
 
-    format!("{}\n", buf.trim())
+        let mut emptyline = true;
+        let mut last_text = "";
+        let mut paren_level = 0;
+        for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
+            let text = n.utf8_text(src.as_bytes()).unwrap();
+
+            match text {
+                "(" => {
+                    if last_text == "(" {
+                        write!(buf, "{}", text).unwrap();
+                    } else if emptyline {
+                        for _ in 0..tab_width * paren_level {
+                            write!(buf, " ").unwrap();
+                        }
+                        write!(buf, "{}", text).unwrap();
+                    } else if last_text == ")" && paren_level == 0 {
+                        writeln!(buf).unwrap();
+                        write!(buf, "{}", text).unwrap();
+                    } else {
+                        write!(buf, " {}", text).unwrap();
+                    }
+                    emptyline = false;
+                    paren_level += 1;
+                }
+                ")" => {
+                    if paren_level > 0 {
+                        paren_level -= 1;
+                    }
+                    write!(buf, "{}", text).unwrap();
+                    emptyline = false;
+                }
+                text if n.kind() == "comment" => {
+                    if emptyline {
+                        for _ in 0..tab_width * paren_level {
+                            write!(buf, " ").unwrap();
+                        }
+                    } else {
+                        write!(buf, " ").unwrap();
+                    }
+                    writeln!(buf, "{}", text).unwrap();
+                    emptyline = true;
+                }
+                text if n.kind() == "ws" => {
+                    let newlines = text.chars().filter(|&c| c == '\n').count();
+                    let n = if emptyline { 1 } else { 0 };
+
+                    for _ in n..newlines {
+                        writeln!(buf).unwrap();
+                        emptyline = true;
+                    }
+                }
+                text => {
+                    if last_text == "(" {
+                        write!(buf, "{}", text).unwrap();
+                    } else {
+                        if emptyline {
+                            for _ in 0..tab_width * paren_level {
+                                write!(buf, " ").unwrap();
+                            }
+                        } else {
+                            write!(buf, " ").unwrap();
+                        }
+                        write!(buf, "{}", text).unwrap();
+                    }
+                    emptyline = false;
+                }
+            }
+
+            last_text = text;
+        }
+    }
+
+    if !buf.ends_with('\n') {
+        buf.push('\n');
+    }
+
+    buf
 }
 
 impl Backend {
@@ -348,7 +361,7 @@ impl LanguageServer for Backend {
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let src = self.document_map.get(&params.text_document.uri).unwrap();
-        let fmt = formatting(&src);
+        let fmt = formatting(&src, params.options.tab_size as usize);
 
         let lines = src.lines().enumerate().count();
 
