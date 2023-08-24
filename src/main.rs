@@ -1,6 +1,7 @@
+use anyhow::Context;
 use dashmap::DashMap;
 use ropey::Rope;
-use tower_lsp::jsonrpc::Result;
+use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tree_sitter::Parser;
@@ -31,16 +32,16 @@ struct TextDocumentItem {
     version: i32,
 }
 
-fn diagnstics(src: &str) -> Vec<Diagnostic> {
+fn diagnstics(src: &str) -> anyhow::Result<Vec<Diagnostic>> {
     let language = tree_sitter_egglog::language();
     let mut parser = Parser::new();
-    parser.set_language(language).unwrap();
+    parser.set_language(language)?;
 
-    let tree = parser.parse(src, None).unwrap();
+    let tree = parser.parse(src, None).context("parse failed")?;
     let root_node = tree.root_node();
 
     // Fixme: Better traverse
-    traverse(root_node.walk(), Order::Post)
+    Ok(traverse(root_node.walk(), Order::Post)
         .filter(|n| n.kind() == "ERROR" || n.is_missing())
         .map(|node| {
             let start = node.start_position();
@@ -55,7 +56,7 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
                 format!(
                     "Unexpected token(s) {}",
                     node.children(&mut cursor)
-                        .map(|n| n.utf8_text(src.as_bytes()).unwrap())
+                        .filter_map(|n| n.utf8_text(src.as_bytes()).ok())
                         .collect::<Vec<_>>()
                         .join(", ")
                 )
@@ -76,17 +77,17 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
                 ..Default::default()
             }
         })
-        .collect()
+        .collect())
 }
 
 // FIXME: find more better way
-fn formatting(src: &str, tab_width: usize) -> String {
+fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
     let language = tree_sitter_egglog::language();
     let mut parser = Parser::new();
-    parser.set_language(language).unwrap();
+    parser.set_language(language)?;
 
     let src = src.trim();
-    let tree = parser.parse(src, None).unwrap();
+    let tree = parser.parse(src, None).context("parse fail")?;
     let root_node = tree.root_node();
 
     let mut buf = String::new();
@@ -99,40 +100,40 @@ fn formatting(src: &str, tab_width: usize) -> String {
         let mut last_kind = "";
         let mut paren_level = 0;
         for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
-            let text = n.utf8_text(src.as_bytes()).unwrap();
+            let text = n.utf8_text(src.as_bytes())?;
 
             match text {
                 text if n.kind() == "lparen" => {
                     if last_kind == "lparen" {
-                        write!(buf, "{}", text).unwrap();
+                        write!(buf, "{}", text)?;
                     } else if emptyline {
                         for _ in 0..tab_width * paren_level {
-                            write!(buf, " ").unwrap();
+                            write!(buf, " ")?;
                         }
-                        write!(buf, "{}", text).unwrap();
+                        write!(buf, "{}", text)?;
                     } else if last_kind == "rparen" && paren_level == 0 {
-                        writeln!(buf).unwrap();
-                        write!(buf, "{}", text).unwrap();
+                        writeln!(buf)?;
+                        write!(buf, "{}", text)?;
                     } else {
-                        write!(buf, " {}", text).unwrap();
+                        write!(buf, " {}", text)?;
                     }
                     emptyline = false;
                     paren_level += 1;
                 }
                 text if n.kind() == "rparen" => {
                     paren_level = paren_level.saturating_sub(1);
-                    write!(buf, "{}", text).unwrap();
+                    write!(buf, "{}", text)?;
                     emptyline = false;
                 }
                 text if n.kind() == "comment" => {
                     if emptyline {
                         for _ in 0..tab_width * paren_level {
-                            write!(buf, " ").unwrap();
+                            write!(buf, " ")?;
                         }
                     } else {
-                        write!(buf, " ").unwrap();
+                        write!(buf, " ")?;
                     }
-                    writeln!(buf, "{}", text).unwrap();
+                    writeln!(buf, "{}", text)?;
                     emptyline = true;
                 }
                 text if n.kind() == "ws" => {
@@ -140,22 +141,22 @@ fn formatting(src: &str, tab_width: usize) -> String {
                     let n = if emptyline { 1 } else { 0 };
 
                     for _ in n..newlines {
-                        writeln!(buf).unwrap();
+                        writeln!(buf)?;
                         emptyline = true;
                     }
                 }
                 text => {
                     if last_kind == "lparen" {
-                        write!(buf, "{}", text).unwrap();
+                        write!(buf, "{}", text)?;
                     } else {
                         if emptyline {
                             for _ in 0..tab_width * paren_level {
-                                write!(buf, " ").unwrap();
+                                write!(buf, " ")?;
                             }
                         } else {
-                            write!(buf, " ").unwrap();
+                            write!(buf, " ")?;
                         }
-                        write!(buf, "{}", text).unwrap();
+                        write!(buf, "{}", text)?;
                     }
                     emptyline = false;
                 }
@@ -169,18 +170,20 @@ fn formatting(src: &str, tab_width: usize) -> String {
         buf.push('\n');
     }
 
-    buf
+    Ok(buf)
 }
 
 impl Backend {
-    async fn on_change(&self, params: TextDocumentItem) {
+    async fn on_change(&self, params: TextDocumentItem) -> Result<()> {
         self.document_map
             .insert(params.uri.clone(), params.text.clone());
-        let diagnostics = diagnstics(&params.text);
+        let diagnostics = diagnstics(&params.text).map_err(|_| Error::internal_error())?;
 
         self.client
             .publish_diagnostics(params.uri, diagnostics, Some(params.version))
             .await;
+
+        Ok(())
     }
 }
 
@@ -239,24 +242,26 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "file opened!")
             .await;
-        self.on_change(TextDocumentItem {
-            uri: params.text_document.uri,
-            text: params.text_document.text,
-            version: params.text_document.version,
-        })
-        .await
+        let _ = self
+            .on_change(TextDocumentItem {
+                uri: params.text_document.uri,
+                text: params.text_document.text,
+                version: params.text_document.version,
+            })
+            .await;
     }
 
     async fn did_change(&self, mut params: DidChangeTextDocumentParams) {
         self.client
             .log_message(MessageType::INFO, "did_change")
             .await;
-        self.on_change(TextDocumentItem {
-            uri: params.text_document.uri,
-            text: std::mem::take(&mut params.content_changes[0].text),
-            version: params.text_document.version,
-        })
-        .await
+        let _ = self
+            .on_change(TextDocumentItem {
+                uri: params.text_document.uri,
+                text: std::mem::take(&mut params.content_changes[0].text),
+                version: params.text_document.version,
+            })
+            .await;
     }
 
     async fn did_save(&self, _: DidSaveTextDocumentParams) {
@@ -292,16 +297,19 @@ impl LanguageServer for Backend {
         let language = tree_sitter_egglog::language();
         let mut language_config =
             HighlightConfiguration::new(language, tree_sitter_egglog::HIGHLIGHTS_QUERY, "", "")
-                .unwrap();
+                .map_err(|_| Error::internal_error())?;
 
         language_config.configure(&highlight_names);
 
-        let src = self.document_map.get(&params.text_document.uri).unwrap();
+        let src = self
+            .document_map
+            .get(&params.text_document.uri)
+            .ok_or_else(|| Error::internal_error())?;
         let rope = Rope::from_str(src.as_str());
 
         let highlights = highlighter
             .highlight(&language_config, src.as_bytes(), None, |_| None)
-            .unwrap();
+            .map_err(|_| Error::internal_error())?;
 
         let mut current_hightlight: Option<Highlight> = None;
         let mut pre_line = 0;
@@ -358,8 +366,12 @@ impl LanguageServer for Backend {
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
-        let src = self.document_map.get(&params.text_document.uri).unwrap();
-        let fmt = formatting(&src, params.options.tab_size as usize);
+        let src = self
+            .document_map
+            .get(&params.text_document.uri)
+            .ok_or_else(|| Error::internal_error())?;
+        let fmt = formatting(&src, params.options.tab_size as usize)
+            .map_err(|_| Error::internal_error())?;
 
         let lines = src.lines().enumerate().count();
 
