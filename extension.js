@@ -7,9 +7,13 @@ let client;
 function activate(context) {
   try {
     const serverOptions = {
-      path: context.extensionPath,
       command: "cargo",
-      args: ["run", "--manifest-path", context.extensionPath + "/Cargo.toml"],
+      args: [
+        "run",
+        "--release",
+        "--manifest-path",
+        context.extensionPath + "/Cargo.toml",
+      ],
     };
     const clientOptions = {
       documentSelector: [
