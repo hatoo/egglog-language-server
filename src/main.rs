@@ -96,21 +96,21 @@ fn formatting(src: &str, tab_width: usize) -> String {
         use std::fmt::Write;
 
         let mut emptyline = true;
-        let mut last_text = "";
+        let mut last_kind = "";
         let mut paren_level = 0;
         for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
             let text = n.utf8_text(src.as_bytes()).unwrap();
 
             match text {
-                "(" => {
-                    if last_text == "(" {
+                text if n.kind() == "lparen" => {
+                    if last_kind == "lparen" {
                         write!(buf, "{}", text).unwrap();
                     } else if emptyline {
                         for _ in 0..tab_width * paren_level {
                             write!(buf, " ").unwrap();
                         }
                         write!(buf, "{}", text).unwrap();
-                    } else if last_text == ")" && paren_level == 0 {
+                    } else if last_kind == "rparen" && paren_level == 0 {
                         writeln!(buf).unwrap();
                         write!(buf, "{}", text).unwrap();
                     } else {
@@ -119,7 +119,7 @@ fn formatting(src: &str, tab_width: usize) -> String {
                     emptyline = false;
                     paren_level += 1;
                 }
-                ")" => {
+                text if n.kind() == "rparen" => {
                     paren_level = paren_level.saturating_sub(1);
                     write!(buf, "{}", text).unwrap();
                     emptyline = false;
@@ -145,7 +145,7 @@ fn formatting(src: &str, tab_width: usize) -> String {
                     }
                 }
                 text => {
-                    if last_text == "(" {
+                    if last_kind == "lparen" {
                         write!(buf, "{}", text).unwrap();
                     } else {
                         if emptyline {
@@ -161,7 +161,7 @@ fn formatting(src: &str, tab_width: usize) -> String {
                 }
             }
 
-            last_text = text;
+            last_kind = n.kind();
         }
     }
 
