@@ -21,6 +21,19 @@
                 ],
                 "configuration": "./language-configuration.json"
             }
+        ],
+        "commands": [
+            {
+                "title": "egglog run",
+                "command": "egglog.egglog_run"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "egglog.egglog_run",
+                "key": "F7",
+                "when": "editorLangId == 'egglog'"
+            }
         ]
     },
     "dependencies": {

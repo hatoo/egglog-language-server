@@ -34,6 +34,25 @@ function activate(context) {
       "egglog-language-server couldn't be started."
     );
   }
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("egglog.egglog_run", async function () {
+      const document = vscode.window.activeTextEditor.document;
+      document.save().then(() => {
+        const relativeFile = document.uri.fsPath;
+
+        const terminal = vscode.window.createTerminal({
+          name: "egglog",
+          shellPath: "sh",
+          shellArgs: [
+            "-c",
+            `egglog ${relativeFile} ; echo "\nPress return key to exit" ; read dummy`,
+          ],
+        });
+        terminal.show();
+      });
+    })
+  );
 }
 
 function deactivate() {
