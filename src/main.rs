@@ -83,39 +83,57 @@ fn diagnstics(src: &str) -> Vec<Diagnostic> {
 fn formatting_walk(cursor: TreeCursor, src: &str, buf: &mut String) {
     use std::fmt::Write;
 
-    let mut last = "";
+    let mut emptyline = false;
+    let mut last_text = "";
     let mut paren_level = 0;
     for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
         let text = n.utf8_text(src.as_bytes()).unwrap();
 
         match text {
             "(" => {
-                paren_level += 1;
-                if last == "(" || paren_level == 1 {
+                if last_text == "(" {
+                    write!(buf, "{}", text).unwrap();
+                } else if emptyline {
+                    for _ in 0..2 * paren_level {
+                        write!(buf, " ").unwrap();
+                    }
+                    write!(buf, "{}", text).unwrap();
+                } else if last_text == ")" && paren_level == 0 {
+                    writeln!(buf).unwrap();
                     write!(buf, "{}", text).unwrap();
                 } else {
                     write!(buf, " {}", text).unwrap();
                 }
+                emptyline = false;
+                paren_level += 1;
             }
             ")" => {
                 paren_level -= 1;
                 write!(buf, "{}", text).unwrap();
-                if paren_level == 0 {
-                    writeln!(buf).unwrap();
-                }
+                emptyline = false;
             }
             text if n.kind() == "comment" => {
+                if emptyline {
+                    for _ in 0..2 * paren_level {
+                        write!(buf, " ").unwrap();
+                    }
+                } else {
+                    write!(buf, " ").unwrap();
+                }
                 writeln!(buf, "{}", text).unwrap();
+                emptyline = true;
             }
             text if n.kind() == "ws" => {
                 let newlines = text.chars().filter(|&c| c == '\n').count();
+                let n = if emptyline { 1 } else { 0 };
 
-                for _ in 1..newlines {
+                for _ in n..newlines {
                     writeln!(buf).unwrap();
+                    emptyline = true;
                 }
             }
             text => {
-                if last == "(" {
+                if last_text == "(" {
                     write!(buf, "{}", text).unwrap();
                 } else {
                     write!(buf, " {}", text).unwrap();
@@ -123,7 +141,7 @@ fn formatting_walk(cursor: TreeCursor, src: &str, buf: &mut String) {
             }
         }
 
-        last = text;
+        last_text = text;
     }
 }
 
