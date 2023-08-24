@@ -1,7 +1,6 @@
 (relation path (i64 i64))
 (relation edge (i64 i64))
 
-
 (rule ((edge x y))
       ((path x y)))
 
@@ -19,4 +18,3 @@
 (print-table path)
 (check (path 1 4))
 (fail (check (path 4 1)))
-
