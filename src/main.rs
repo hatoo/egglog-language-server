@@ -304,7 +304,7 @@ impl LanguageServer for Backend {
         let src = self
             .document_map
             .get(&params.text_document.uri)
-            .ok_or_else(|| Error::internal_error())?;
+            .ok_or_else(Error::internal_error)?;
         let rope = Rope::from_str(src.as_str());
 
         let highlights = highlighter
@@ -369,7 +369,7 @@ impl LanguageServer for Backend {
         let src = self
             .document_map
             .get(&params.text_document.uri)
-            .ok_or_else(|| Error::internal_error())?;
+            .ok_or_else(Error::internal_error)?;
         let fmt = formatting(&src, params.options.tab_size as usize)
             .map_err(|_| Error::internal_error())?;
 
