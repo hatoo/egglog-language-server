@@ -4,6 +4,7 @@ A language server for [egglog](https://github.com/egraphs-good/egglog).
 
 ## Features
 
+- [x] Press F7 to run egglog file
 - [x] Syntax highlighting
 - [x] Prser Diagnostics
 - [x] Formatting
