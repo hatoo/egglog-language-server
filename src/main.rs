@@ -8,7 +8,8 @@ use tree_sitter::Parser;
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
-pub const LEGEND_TYPE: &[SemanticTokenType] = &[
+// Token types for language server side
+pub const LSP_LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::KEYWORD,
     SemanticTokenType::FUNCTION,
     SemanticTokenType::TYPE,
@@ -19,6 +20,18 @@ pub const LEGEND_TYPE: &[SemanticTokenType] = &[
     SemanticTokenType::COMMENT,
     SemanticTokenType::OPERATOR,
     SemanticTokenType::PARAMETER,
+];
+// Token types for Tree-sitter side
+// Both must match indices
+const TS_HIGHLIGHT_NAMES: &[&str] = &[
+    "keyword",
+    "function",
+    "type",
+    "attribute",
+    "variable",
+    "number",
+    "string",
+    "comment",
 ];
 #[derive(Debug)]
 struct Backend {
@@ -216,7 +229,7 @@ impl LanguageServer for Backend {
                             semantic_tokens_options: SemanticTokensOptions {
                                 work_done_progress_options: WorkDoneProgressOptions::default(),
                                 legend: SemanticTokensLegend {
-                                    token_types: LEGEND_TYPE.into(),
+                                    token_types: LSP_LEGEND_TYPE.into(),
                                     token_modifiers: vec![],
                                 },
                                 range: Some(false),
@@ -287,16 +300,6 @@ impl LanguageServer for Backend {
         self.client
             .log_message(MessageType::INFO, "semantic_tokens_full")
             .await;
-        let highlight_names = [
-            "keyword",
-            "function",
-            "type",
-            "attribute",
-            "variable",
-            "number",
-            "string",
-            "comment",
-        ];
 
         let mut highlighter = Highlighter::new();
         let language = tree_sitter_egglog::language();
@@ -304,7 +307,7 @@ impl LanguageServer for Backend {
             HighlightConfiguration::new(language, tree_sitter_egglog::HIGHLIGHTS_QUERY, "", "")
                 .map_err(|_| Error::internal_error())?;
 
-        language_config.configure(&highlight_names);
+        language_config.configure(&TS_HIGHLIGHT_NAMES);
 
         let src = self
             .document_map
