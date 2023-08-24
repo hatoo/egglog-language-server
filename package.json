@@ -3,7 +3,11 @@
     "version": "0.0.1",
     "author": "hatoo",
     "license": "MIT",
-    "description": "A tiny programming language that supports Language Server Protocol",
+    "description": "egglog language support for VSCode",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/hatoo/egglog-language-server.git"
+    },
     "engines": {
         "vscode": "^1.75.0"
     },
