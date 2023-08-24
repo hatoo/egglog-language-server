@@ -53,6 +53,24 @@ function activate(context) {
       });
     })
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("egglog.egglog_desugar", async function () {
+      const document = vscode.window.activeTextEditor.document;
+      document.save().then(() => {
+        const relativeFile = document.uri.fsPath;
+
+        const terminal = vscode.window.createTerminal({
+          name: "egglog desugar",
+          shellPath: "sh",
+          shellArgs: [
+            "-c",
+            `egglog --desugar ${relativeFile} ; echo "\nPress return key to exit" ; read dummy`,
+          ],
+        });
+        terminal.show();
+      });
+    })
+  );
 }
 
 function deactivate() {

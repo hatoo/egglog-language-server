@@ -26,12 +26,21 @@
             {
                 "title": "egglog run",
                 "command": "egglog.egglog_run"
+            },
+            {
+                "title": "egglog desugar",
+                "command": "egglog.egglog_desugar"
             }
         ],
         "keybindings": [
             {
                 "command": "egglog.egglog_run",
                 "key": "F7",
+                "when": "editorLangId == 'egglog'"
+            },
+            {
+                "command": "egglog.egglog_desugar",
+                "key": "F8",
                 "when": "editorLangId == 'egglog'"
             }
         ]
