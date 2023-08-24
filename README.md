@@ -19,6 +19,7 @@ A language server for [egglog](https://github.com/egraphs-good/egglog).
 ## Build
 
 ```bash
+npm i
 vsce package
 ```
 
