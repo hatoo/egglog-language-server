@@ -120,9 +120,7 @@ fn formatting(src: &str, tab_width: usize) -> String {
                     paren_level += 1;
                 }
                 ")" => {
-                    if paren_level > 0 {
-                        paren_level -= 1;
-                    }
+                    paren_level = paren_level.saturating_sub(1);
                     write!(buf, "{}", text).unwrap();
                     emptyline = false;
                 }
