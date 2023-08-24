@@ -80,7 +80,6 @@ fn diagnstics(src: &str) -> anyhow::Result<Vec<Diagnostic>> {
         .collect())
 }
 
-// FIXME: find more better way
 fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
     let language = tree_sitter_egglog::language();
     let mut parser = Parser::new();
@@ -94,6 +93,7 @@ fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
     let cursor = root_node.walk();
 
     {
+        // FIXME: Many ad-hocs, I don't like this codes.
         use std::fmt::Write;
 
         let mut emptyline = true;
@@ -122,6 +122,11 @@ fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
                 }
                 text if n.kind() == "rparen" => {
                     paren_level = paren_level.saturating_sub(1);
+                    if emptyline {
+                        for _ in 0..tab_width * paren_level {
+                            write!(buf, " ")?;
+                        }
+                    }
                     write!(buf, "{}", text)?;
                     emptyline = false;
                 }
