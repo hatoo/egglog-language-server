@@ -1,5 +1,33 @@
-# WIP egglog language server
+# egglog language server
 
+A language server for [egglog](https://github.com/egraphs-good/egglog).
+
+## Features
+
+- [x] Syntax highlighting
+- [x] Prser Diagnostics
+- [x] Formatting
+
+## Installation
+
+## Prerequisites
+
+- cargo
+- `npm install -g @vscode/vsce`
+
+## Build
+
+```bash
+vsce package
+```
+
+and install .vsix file to your vscode.
+
+### Note
+
+Language server will compiled at first time you open egglog file. It may take a while.
+
+## License
 
 Codes are based on original [egglog](https://github.com/egraphs-good/egglog/tree/main/vscode/eggsmol-1.0.0) extension.
 ```text
