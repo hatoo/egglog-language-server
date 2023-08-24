@@ -36,6 +36,7 @@ const TS_HIGHLIGHT_NAMES: &[&str] = &[
 #[derive(Debug)]
 struct Backend {
     client: Client,
+    // Perhaps storing Rope is more efficient, however I don't expect (very) large sopurce text will come and tree-sitter's parser requires &[u8].
     document_map: DashMap<Url, String>,
 }
 
