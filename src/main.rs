@@ -1,6 +1,5 @@
 use anyhow::Context;
 use dashmap::DashMap;
-use ropey::Rope;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -314,7 +313,15 @@ impl LanguageServer for Backend {
             .document_map
             .get(&params.text_document.uri)
             .ok_or_else(Error::internal_error)?;
-        let rope = Rope::from_str(src.as_str());
+
+        let mut parser = Parser::new();
+        parser.set_language(language).unwrap();
+
+        let tree = parser
+            .parse(src.as_bytes(), None)
+            .context("parse fail")
+            .unwrap();
+        let root_node = tree.root_node();
 
         let highlights = highlighter
             .highlight(&language_config, src.as_bytes(), None, |_| None)
@@ -327,11 +334,12 @@ impl LanguageServer for Backend {
             .filter_map(|h| h.ok())
             .filter_map(|h| match h {
                 HighlightEvent::Source { start, end } => {
+                    let node = root_node.descendant_for_byte_range(start, end).unwrap();
+
                     let s = start;
                     let e = end;
-                    let line = rope.try_byte_to_line(s).ok()? as u32;
-                    let first = rope.try_line_to_char(line as usize).ok()? as u32;
-                    let start = rope.try_byte_to_char(s).ok()? as u32 - first;
+                    let line = node.start_position().row as u32;
+                    let start = node.start_position().column as u32;
                     let delta_line = line - pre_line;
                     let delta_start = if delta_line == 0 {
                         start - pre_start
