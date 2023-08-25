@@ -12,6 +12,8 @@ A language server and VScode extension for [egglog](https://github.com/egraphs-g
 - [x] Hover
     - [x] Definition
     - [x] Desugar
+- [x] Completion
+    - [x] Keywords
 
 ## Installation
 
