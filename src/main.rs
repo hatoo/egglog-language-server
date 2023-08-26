@@ -509,6 +509,22 @@ impl LanguageServer for Backend {
                     ),
                 )
                 .unwrap(),
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "sort" (ident) @name (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "declare" (ident) @name (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
             ];
 
             for query in queries {
@@ -548,13 +564,17 @@ impl LanguageServer for Backend {
 
         if let Some(definition) = definition(node.clone(), &src_tree.tree, &src_tree.src) {
             markdown.push_str(&format!(
-                "#### Definition\n\n```text\n{}\n```\n",
+                // TODO: fix highlight language
+                "#### Definition\n\n```clojure\n{}\n```\n",
                 definition
             ));
         }
 
         if let Some(desugar_result) = desugar_node(node, &src_tree.src) {
-            markdown.push_str(&format!("#### Desugar\n\n```text\n{}\n```", desugar_result));
+            markdown.push_str(&format!(
+                "#### Desugar\n\n```clojure\n{}\n```",
+                desugar_result
+            ));
         }
 
         if markdown.is_empty() {
