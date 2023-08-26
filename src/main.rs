@@ -1,3 +1,5 @@
+use std::process::Stdio;
+
 use dashmap::DashMap;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
@@ -198,6 +200,26 @@ fn formatting(src_tree: &SrcTree, tab_width: usize) -> anyhow::Result<String> {
     Ok(buf)
 }
 
+fn desugar(src: &str) -> anyhow::Result<String> {
+    use std::io::Write;
+
+    let mut child = std::process::Command::new("egglog")
+        .args(&["--desugar", "/dev/stdin"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    write!(child.stdin.take().unwrap(), "{}", src)?;
+
+    let output = child.wait_with_output()?;
+
+    if !output.status.success() {
+        anyhow::bail!("child proccess fail");
+    }
+    Ok(String::from_utf8(output.stdout)?)
+}
+
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) -> Result<()> {
         let language = tree_sitter_egglog::language();
@@ -263,6 +285,7 @@ impl LanguageServer for Backend {
                     ),
                 ),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -425,6 +448,47 @@ impl LanguageServer for Backend {
             },
             new_text: fmt,
         }]))
+    }
+
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let pos = params.text_document_position_params;
+
+        let src_tree = self
+            .document_map
+            .get(&pos.text_document.uri)
+            .ok_or_else(|| Error::invalid_params("unknown uri"))?;
+
+        let root = src_tree.tree.root_node();
+
+        let posisiton = tree_sitter::Point {
+            row: pos.position.line as _,
+            column: pos.position.character as _,
+        };
+
+        let mut node = root
+            .descendant_for_point_range(posisiton, posisiton)
+            .ok_or_else(|| Error::invalid_params("Postion out of range"))?;
+
+        while node.kind() != "command" {
+            let Some(p) = node.parent() else {
+                return Ok(None);
+            };
+
+            node = p;
+        }
+
+        let snippet = node.utf8_text(src_tree.src.as_bytes()).unwrap();
+        let Ok(hover) = desugar(snippet) else {
+            return Ok(None);
+        };
+
+        Ok(Some(Hover {
+            contents: HoverContents::Scalar(MarkedString::String(format!(
+                "#### Desugar\n\n```scheme\n{}\n```",
+                hover
+            ))),
+            range: None,
+        }))
     }
 }
 
