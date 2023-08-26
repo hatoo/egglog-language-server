@@ -35,6 +35,7 @@ const TS_HIGHLIGHT_NAMES: &[&str] = &[
 #[derive(Debug)]
 struct SrcTree {
     src: String,
+    // Must be always matched to `src`
     tree: Tree,
 }
 
@@ -409,7 +410,7 @@ impl LanguageServer for Backend {
         let fmt = formatting(&src_tree, params.options.tab_size as usize)
             .map_err(|_| Error::internal_error())?;
 
-        let lines = src_tree.src.lines().enumerate().count();
+        let lines = src_tree.tree.root_node().end_position().row;
 
         Ok(Some(vec![TextEdit {
             range: Range {
