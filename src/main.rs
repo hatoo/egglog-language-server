@@ -1,9 +1,8 @@
-use anyhow::Context;
 use dashmap::DashMap;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::Parser;
+use tree_sitter::{Parser, Tree};
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -32,11 +31,17 @@ const TS_HIGHLIGHT_NAMES: &[&str] = &[
     "string",
     "comment",
 ];
+
+#[derive(Debug)]
+struct SrcTree {
+    src: String,
+    tree: Tree,
+}
+
 #[derive(Debug)]
 struct Backend {
     client: Client,
-    // Perhaps storing Rope is more efficient, however I don't expect (very) large sopurce text will come and tree-sitter's parser requires &[u8].
-    document_map: DashMap<Url, String>,
+    document_map: DashMap<Url, SrcTree>,
 }
 
 struct TextDocumentItem {
@@ -45,12 +50,9 @@ struct TextDocumentItem {
     version: i32,
 }
 
-fn diagnstics(src: &str) -> anyhow::Result<Vec<Diagnostic>> {
-    let language = tree_sitter_egglog::language();
-    let mut parser = Parser::new();
-    parser.set_language(language)?;
-
-    let tree = parser.parse(src, None).context("parse failed")?;
+fn diagnstics(src_tree: &SrcTree) -> anyhow::Result<Vec<Diagnostic>> {
+    let src = &src_tree.src;
+    let tree = &src_tree.tree;
     let root_node = tree.root_node();
 
     // Fixme: Better traverse
@@ -93,13 +95,13 @@ fn diagnstics(src: &str) -> anyhow::Result<Vec<Diagnostic>> {
         .collect())
 }
 
-fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
+fn formatting(src_tree: &SrcTree, tab_width: usize) -> anyhow::Result<String> {
     let language = tree_sitter_egglog::language();
     let mut parser = Parser::new();
     parser.set_language(language)?;
 
-    let src = src.trim();
-    let tree = parser.parse(src, None).context("parse fail")?;
+    let src = &src_tree.src;
+    let tree = &src_tree.tree;
     let root_node = tree.root_node();
 
     let mut buf = String::new();
@@ -112,7 +114,10 @@ fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
         let mut emptyline = true;
         let mut last_kind = "";
         let mut paren_level = 0;
-        for n in traverse(cursor, Order::Pre).filter(|n| n.child_count() == 0) {
+        for n in traverse(cursor, Order::Pre)
+            .filter(|n| n.child_count() == 0)
+            .skip_while(|n| n.kind() == "ws")
+        {
             let text = n.utf8_text(src.as_bytes())?;
 
             match text {
@@ -184,18 +189,35 @@ fn formatting(src: &str, tab_width: usize) -> anyhow::Result<String> {
         }
     }
 
-    if !buf.ends_with('\n') {
-        buf.push('\n');
+    while buf.ends_with('\n') {
+        buf.pop();
     }
+    buf.push('\n');
 
     Ok(buf)
 }
 
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) -> Result<()> {
-        self.document_map
-            .insert(params.uri.clone(), params.text.clone());
-        let diagnostics = diagnstics(&params.text).map_err(|_| Error::internal_error())?;
+        let language = tree_sitter_egglog::language();
+        let mut parser = Parser::new();
+        parser
+            .set_language(language)
+            .map_err(|_| Error::internal_error())?;
+
+        // TODO: Support partial edit
+        let tree = parser
+            .parse(&params.text, None)
+            .ok_or_else(Error::parse_error)?;
+
+        let src_tree = SrcTree {
+            tree,
+            src: params.text,
+        };
+
+        let diagnostics = diagnstics(&src_tree).map_err(|_| Error::internal_error())?;
+
+        self.document_map.insert(params.uri.clone(), src_tree);
 
         self.client
             .publish_diagnostics(params.uri, diagnostics, Some(params.version))
@@ -307,9 +329,9 @@ impl LanguageServer for Backend {
             HighlightConfiguration::new(language, tree_sitter_egglog::HIGHLIGHTS_QUERY, "", "")
                 .map_err(|_| Error::internal_error())?;
 
-        language_config.configure(&TS_HIGHLIGHT_NAMES);
+        language_config.configure(TS_HIGHLIGHT_NAMES);
 
-        let src = self
+        let src_tree = self
             .document_map
             .get(&params.text_document.uri)
             .ok_or_else(Error::internal_error)?;
@@ -317,14 +339,11 @@ impl LanguageServer for Backend {
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
 
-        let tree = parser
-            .parse(src.as_bytes(), None)
-            .context("parse fail")
-            .unwrap();
+        let tree = &src_tree.tree;
         let root_node = tree.root_node();
 
         let highlights = highlighter
-            .highlight(&language_config, src.as_bytes(), None, |_| None)
+            .highlight(&language_config, src_tree.src.as_bytes(), None, |_| None)
             .map_err(|_| Error::internal_error())?;
 
         let mut current_hightlight: Option<Highlight> = None;
@@ -383,14 +402,14 @@ impl LanguageServer for Backend {
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
-        let src = self
+        let src_tree = self
             .document_map
             .get(&params.text_document.uri)
             .ok_or_else(Error::internal_error)?;
-        let fmt = formatting(&src, params.options.tab_size as usize)
+        let fmt = formatting(&src_tree, params.options.tab_size as usize)
             .map_err(|_| Error::internal_error())?;
 
-        let lines = src.lines().enumerate().count();
+        let lines = src_tree.src.lines().enumerate().count();
 
         Ok(Some(vec![TextEdit {
             range: Range {
