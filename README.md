@@ -9,6 +9,9 @@ A language server for [egglog](https://github.com/egraphs-good/egglog).
 - [x] Syntax highlighting
 - [x] Prser Diagnostics
 - [x] Formatting
+- [x] Hover
+    - [x] Definition
+    - [x] Desugar
 
 ## Installation
 
@@ -16,6 +19,8 @@ A language server for [egglog](https://github.com/egraphs-good/egglog).
 
 - cargo
 - `npm install -g @vscode/vsce`
+
+To fully functional this extension, you need to install `egglog` command on your $PATH.
 
 ## Build
 

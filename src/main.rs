@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::{Node, Parser, Query, QueryCursor, Tree};
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -464,6 +464,68 @@ impl LanguageServer for Backend {
             desugar(snippet).ok()
         }
 
+        fn definition<'a>(node: Node, tree: &Tree, src: &'a str) -> Option<&'a str> {
+            let ty = node.utf8_text(src.as_bytes()).ok()?;
+
+            // TODO: I think these can be 'static.
+            let queries = &[
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "datatype" (ident) @name (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "datatype" (variant (ident) @name) (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "relation" (ident) @name (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "function" (ident) @name (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
+                Query::new(
+                    tree_sitter_egglog::language(),
+                    &format!(
+                        r#"(command "let" (ident) @name (#eq? @name "{}")) @command"#,
+                        ty
+                    ),
+                )
+                .unwrap(),
+            ];
+
+            for query in queries {
+                let mut cursor = QueryCursor::new();
+                let Some((capture, _)) = cursor
+                    .captures(&query, tree.root_node(), src.as_bytes())
+                    .next()
+                else {
+                    continue;
+                };
+
+                return capture.captures[0].node.utf8_text(src.as_bytes()).ok();
+            }
+
+            None
+        }
+
         let pos = params.text_document_position_params;
 
         let src_tree = self
@@ -483,6 +545,14 @@ impl LanguageServer for Backend {
             .ok_or_else(|| Error::invalid_params("Postion out of range"))?;
 
         let mut markdown = String::new();
+
+        if let Some(definition) = definition(node.clone(), &src_tree.tree, &src_tree.src) {
+            markdown.push_str(&format!(
+                "#### Definition\n\n```text\n{}\n```\n",
+                definition
+            ));
+        }
+
         if let Some(desugar_result) = desugar_node(node, &src_tree.src) {
             markdown.push_str(&format!("#### Desugar\n\n```text\n{}\n```", desugar_result));
         }
