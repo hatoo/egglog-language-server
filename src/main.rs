@@ -564,15 +564,14 @@ impl LanguageServer for Backend {
 
         if let Some(definition) = definition(node.clone(), &src_tree.tree, &src_tree.src) {
             markdown.push_str(&format!(
-                // TODO: fix highlight language
-                "#### Definition\n\n```clojure\n{}\n```\n",
+                "#### Definition\n\n```egglog\n{}\n```\n",
                 definition
             ));
         }
 
         if let Some(desugar_result) = desugar_node(node, &src_tree.src) {
             markdown.push_str(&format!(
-                "#### Desugar\n\n```clojure\n{}\n```",
+                "#### Desugar\n\n```egglog\n{}\n```",
                 desugar_result
             ));
         }
