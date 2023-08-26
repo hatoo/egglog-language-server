@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::{Parser, Tree};
+use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -451,6 +451,19 @@ impl LanguageServer for Backend {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        fn desugar_node(mut node: Node, src: &str) -> Option<String> {
+            while node.kind() != "command" {
+                let Some(p) = node.parent() else {
+                    return None;
+                };
+
+                node = p;
+            }
+
+            let snippet = node.utf8_text(src.as_bytes()).ok()?;
+            desugar(snippet).ok()
+        }
+
         let pos = params.text_document_position_params;
 
         let src_tree = self
@@ -465,28 +478,21 @@ impl LanguageServer for Backend {
             column: pos.position.character as _,
         };
 
-        let mut node = root
+        let node = root
             .descendant_for_point_range(posisiton, posisiton)
             .ok_or_else(|| Error::invalid_params("Postion out of range"))?;
 
-        while node.kind() != "command" {
-            let Some(p) = node.parent() else {
-                return Ok(None);
-            };
-
-            node = p;
+        let mut markdown = String::new();
+        if let Some(desugar_result) = desugar_node(node, &src_tree.src) {
+            markdown.push_str(&format!("#### Desugar\n\n```text\n{}\n```", desugar_result));
         }
 
-        let snippet = node.utf8_text(src_tree.src.as_bytes()).unwrap();
-        let Ok(hover) = desugar(snippet) else {
+        if markdown.is_empty() {
             return Ok(None);
-        };
+        }
 
         Ok(Some(Hover {
-            contents: HoverContents::Scalar(MarkedString::String(format!(
-                "#### Desugar\n\n```scheme\n{}\n```",
-                hover
-            ))),
+            contents: HoverContents::Scalar(MarkedString::String(markdown)),
             range: None,
         }))
     }
