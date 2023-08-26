@@ -1,6 +1,6 @@
 # egglog language server
 
-A language server for [egglog](https://github.com/egraphs-good/egglog).
+A language server and VScode extension for [egglog](https://github.com/egraphs-good/egglog).
 
 ## Features
 
@@ -33,7 +33,7 @@ and install .vsix file to your vscode.
 
 ### Note
 
-Language server will compiled at first time you open egglog file. It may take a while.
+Language server will be compiled at first time you open an egglog file. It may take a while.
 
 ## License
 
