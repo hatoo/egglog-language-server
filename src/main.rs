@@ -204,7 +204,7 @@ fn desugar(src: &str) -> anyhow::Result<String> {
     use std::io::Write;
 
     let mut child = std::process::Command::new("egglog")
-        .args(&["--desugar", "/dev/stdin"])
+        .args(["--desugar", "/dev/stdin"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -465,7 +465,11 @@ impl LanguageServer for Backend {
         }
 
         fn definition<'a>(node: Node, tree: &Tree, src: &'a str) -> Option<&'a str> {
-            let ty = node.utf8_text(src.as_bytes()).ok()?;
+            if node.kind() != "ident" {
+                return None;
+            }
+
+            let ident = node.utf8_text(src.as_bytes()).ok()?;
 
             // TODO: I think these can be 'static.
             let queries = &[
@@ -473,7 +477,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "datatype" (ident) @name (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -481,7 +485,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "datatype" (variant (ident) @name) (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -489,7 +493,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "relation" (ident) @name (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -497,7 +501,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "function" (ident) @name (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -505,7 +509,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "let" (ident) @name (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -513,7 +517,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "sort" (ident) @name (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -521,7 +525,7 @@ impl LanguageServer for Backend {
                     tree_sitter_egglog::language(),
                     &format!(
                         r#"(command "declare" (ident) @name (#eq? @name "{}")) @command"#,
-                        ty
+                        ident
                     ),
                 )
                 .unwrap(),
@@ -530,7 +534,7 @@ impl LanguageServer for Backend {
             for query in queries {
                 let mut cursor = QueryCursor::new();
                 let Some((capture, _)) = cursor
-                    .captures(&query, tree.root_node(), src.as_bytes())
+                    .captures(query, tree.root_node(), src.as_bytes())
                     .next()
                 else {
                     continue;
@@ -562,7 +566,7 @@ impl LanguageServer for Backend {
 
         let mut markdown = String::new();
 
-        if let Some(definition) = definition(node.clone(), &src_tree.tree, &src_tree.src) {
+        if let Some(definition) = definition(node, &src_tree.tree, &src_tree.src) {
             markdown.push_str(&format!(
                 "#### Definition\n\n```egglog\n{}\n```\n",
                 definition
