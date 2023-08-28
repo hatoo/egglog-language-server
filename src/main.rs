@@ -60,7 +60,7 @@ fn diagnstics(src_tree: &SrcTree) -> anyhow::Result<Vec<Diagnostic>> {
 
     // Fixme: Better traverse
     Ok(traverse(root_node.walk(), Order::Post)
-        .filter(|n| n.kind() == "ERROR" || n.is_missing())
+        .filter(|n| n.is_error() || n.is_missing())
         .map(|node| {
             let start = node.start_position();
             let end = node.end_position();
