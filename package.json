@@ -2,6 +2,7 @@
     "name": "egglog-language",
     "version": "0.0.1",
     "author": "hatoo",
+    "publisher": "hatookov",
     "license": "MIT",
     "description": "egglog language support for VSCode",
     "repository": {
@@ -54,6 +55,5 @@
     },
     "dependencies": {
         "vscode-languageclient": "^8.1.0"
-    },
-    "private": true
+    }
 }
