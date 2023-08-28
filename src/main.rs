@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::{Node, Parser, Query, QueryCursor, Tree};
+use tree_sitter::{Node, Parser, Query, QueryCursor, QueryMatches, Tree};
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -467,8 +467,22 @@ impl LanguageServer for Backend {
                 node = p;
             }
 
-            let snippet = node.utf8_text(src.as_bytes()).ok()?;
-            desugar(snippet).ok()
+            let query = Query::new(tree_sitter_egglog::language(), "(ident) @ident").unwrap();
+
+            let mut cursor = QueryCursor::new();
+            let Some(ident) = cursor.matches(&query, node, src.as_bytes()).next() else {
+                return None;
+            };
+
+            let ident = ident.captures[0].node.utf8_text(src.as_bytes()).unwrap();
+
+            let snippet = &src[..node.end_byte()];
+            desugar(snippet).ok().map(|s| {
+                s.lines()
+                    .filter(|l| l.contains(ident))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
         }
 
         fn definition<'a>(node: Node, tree: &Tree, src: &'a str) -> Option<&'a str> {
