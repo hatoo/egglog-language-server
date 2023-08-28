@@ -286,6 +286,13 @@ impl LanguageServer for Backend {
                 ),
                 document_formatting_provider: Some(OneOf::Left(true)),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
+                completion_provider: Some(CompletionOptions {
+                    resolve_provider: Some(false),
+                    trigger_characters: Some(vec!["(".to_string()]),
+                    work_done_progress_options: Default::default(),
+                    all_commit_characters: None,
+                    completion_item: None,
+                }),
                 ..Default::default()
             },
             ..Default::default()
@@ -588,6 +595,76 @@ impl LanguageServer for Backend {
             contents: HoverContents::Scalar(MarkedString::String(markdown)),
             range: None,
         }))
+    }
+
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        self.client
+            .log_message(MessageType::INFO, "completion")
+            .await;
+
+        let uri = &params.text_document_position.text_document.uri;
+
+        let src_tree = self
+            .document_map
+            .get(uri)
+            .ok_or_else(|| Error::internal_error())?;
+
+        let root = src_tree.tree.root_node();
+
+        let pos = tree_sitter::Point {
+            row: params.text_document_position.position.line as _,
+            column: params.text_document_position.position.character as _,
+        };
+
+        let node = root.named_descendant_for_point_range(pos, pos).unwrap();
+
+        if node.prev_sibling().is_some() {
+            return Ok(None);
+        }
+
+        const KEYWORDS: &[&str] = &[
+            "set-option",
+            "datatype",
+            "sort",
+            "function",
+            "declare",
+            "relation",
+            "ruleset",
+            "rule",
+            "rewrite",
+            "birewrite",
+            "let",
+            "run",
+            "simplify",
+            "add-ruleset",
+            "calc",
+            "query-extract",
+            "check",
+            "check-proof",
+            "run-schedule",
+            "push",
+            "pop",
+            "print-table",
+            "print-size",
+            "input",
+            "output",
+            "fail",
+            "include",
+            "set",
+            "delete",
+            "union",
+            "panic",
+            "extract",
+        ];
+
+        let items = KEYWORDS
+            .iter()
+            .map(|k| CompletionItem {
+                label: k.to_string(),
+                ..Default::default()
+            })
+            .collect();
+        Ok(Some(CompletionResponse::Array(items)))
     }
 }
 
