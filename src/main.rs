@@ -621,7 +621,7 @@ impl LanguageServer for Backend {
         let src_tree = self
             .document_map
             .get(uri)
-            .ok_or_else(|| Error::internal_error())?;
+            .ok_or_else(Error::internal_error)?;
 
         let root = src_tree.tree.root_node();
 
