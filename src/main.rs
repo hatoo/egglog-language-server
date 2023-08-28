@@ -630,7 +630,13 @@ impl LanguageServer for Backend {
             column: params.text_document_position.position.character as _,
         };
 
-        let node = root.named_descendant_for_point_range(pos, pos).unwrap();
+        let mut node = root.named_descendant_for_point_range(pos, pos).unwrap();
+
+        if node.kind() == "rparen" {
+            if let Some(p) = node.prev_sibling() {
+                node = p;
+            }
+        }
 
         if node.prev_sibling().is_some() {
             return Ok(None);
