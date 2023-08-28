@@ -26,6 +26,8 @@ To fully functional this extension, you need to install `egglog` command on your
 
 ## Build
 
+Install from [Marketplace](https://marketplace.visualstudio.com/items?itemName=hatookov.egglog-language). Or
+
 ```bash
 npm i
 vsce package
