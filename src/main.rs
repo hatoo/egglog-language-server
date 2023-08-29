@@ -467,21 +467,20 @@ impl LanguageServer for Backend {
                 node = p;
             }
 
-            let query = Query::new(tree_sitter_egglog::language(), "(ident) @ident").unwrap();
+            let src = format!(
+                "{}\n(let __marker 0)\n{}",
+                &src[..node.start_byte()],
+                &src[node.start_byte()..node.end_byte()]
+            );
 
-            let mut cursor = QueryCursor::new();
-            let Some(ident) = cursor.matches(&query, node, src.as_bytes()).next() else {
-                return None;
-            };
-
-            let ident = ident.captures[0].node.utf8_text(src.as_bytes()).unwrap();
-
-            let snippet = &src[..node.end_byte()];
-            desugar(snippet).ok().map(|s| {
-                s.lines()
-                    .filter(|l| l.contains(ident))
-                    .collect::<Vec<_>>()
-                    .join("\n")
+            desugar(&src).ok().map(|s| {
+                let mut lines = s.lines();
+                while let Some(line) = lines.next() {
+                    if line.contains("__marker") {
+                        break;
+                    }
+                }
+                lines.collect::<Vec<_>>().join("\n")
             })
         }
 
