@@ -485,7 +485,7 @@ impl LanguageServer for Backend {
         }
 
         fn definition<'a>(node: Node, tree: &Tree, src: &'a str) -> Option<&'a str> {
-            if node.kind() != "ident" {
+            if node.kind() != "ident" && node.kind() != "type" {
                 return None;
             }
 
