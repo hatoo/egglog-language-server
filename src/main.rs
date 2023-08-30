@@ -479,7 +479,7 @@ impl LanguageServer for Backend {
 
             desugar(&src).ok().map(|s| {
                 let mut lines = s.lines();
-                while let Some(line) = lines.next() {
+                for line in lines.by_ref() {
                     if line.contains("__marker") {
                         break;
                     }
@@ -642,52 +642,57 @@ impl LanguageServer for Backend {
         }
 
         if node.prev_sibling().is_some() {
-            return Ok(None);
-        }
-
-        const KEYWORDS: &[&str] = &[
-            "set-option",
-            "datatype",
-            "sort",
-            "function",
-            "declare",
-            "relation",
-            "ruleset",
-            "rule",
-            "rewrite",
-            "birewrite",
-            "let",
-            "run",
-            "simplify",
-            "add-ruleset",
-            "calc",
-            "query-extract",
-            "check",
-            "check-proof",
-            "run-schedule",
-            "push",
-            "pop",
-            "print-table",
-            "print-size",
-            "input",
-            "output",
-            "fail",
-            "include",
-            "set",
-            "delete",
-            "union",
-            "panic",
-            "extract",
-        ];
-
-        let items = KEYWORDS
-            .iter()
-            .map(|k| CompletionItem {
-                label: k.to_string(),
+            // Completion (local|global) variables
+            Ok(Some(CompletionResponse::Array(vec![CompletionItem {
+                label: "matched".to_string(),
                 ..Default::default()
-            })
-            .collect();
-        Ok(Some(CompletionResponse::Array(items)))
+            }])))
+        } else {
+            // Completion keywords
+            const KEYWORDS: &[&str] = &[
+                "set-option",
+                "datatype",
+                "sort",
+                "function",
+                "declare",
+                "relation",
+                "ruleset",
+                "rule",
+                "rewrite",
+                "birewrite",
+                "let",
+                "run",
+                "simplify",
+                "add-ruleset",
+                "calc",
+                "query-extract",
+                "check",
+                "check-proof",
+                "run-schedule",
+                "push",
+                "pop",
+                "print-table",
+                "print-size",
+                "input",
+                "output",
+                "fail",
+                "include",
+                "set",
+                "delete",
+                "union",
+                "panic",
+                "extract",
+            ];
+
+            let items = KEYWORDS
+                .iter()
+                .map(|k| CompletionItem {
+                    label: k.to_string(),
+                    ..Default::default()
+                })
+                .collect();
+            Ok(Some(CompletionResponse::Array(items)))
+        }
     }
 }
 
