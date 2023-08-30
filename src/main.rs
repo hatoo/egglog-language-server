@@ -224,6 +224,63 @@ fn desugar(src: &str) -> anyhow::Result<String> {
     Ok(String::from_utf8(output.stdout)?)
 }
 
+fn globals(src_tree: &SrcTree) -> Vec<String> {
+    let queries = &[
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "datatype" (ident) @name)"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "datatype" (variant (ident) @name))"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "relation" (ident) @name)"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "function" (ident) @name)"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "let" (ident) @name)"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "sort" (ident) @name)"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "declare" (ident))"#,
+        )
+        .unwrap(),
+    ];
+
+    queries
+        .iter()
+        .flat_map(|q| {
+            let mut cursor = QueryCursor::new();
+            cursor
+                .matches(q, src_tree.tree.root_node(), src_tree.src.as_bytes())
+                .map(|m| {
+                    m.captures[0]
+                        .node
+                        .utf8_text(src_tree.src.as_bytes())
+                        .unwrap()
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) -> Result<()> {
         let language = tree_sitter_egglog::language();
@@ -684,12 +741,20 @@ impl LanguageServer for Backend {
                 "extract",
             ];
 
+            let globals = globals(&src_tree);
+
             let items = KEYWORDS
                 .iter()
                 .map(|k| CompletionItem {
                     label: k.to_string(),
+                    kind: Some(CompletionItemKind::KEYWORD),
                     ..Default::default()
                 })
+                .chain(globals.iter().map(|s| CompletionItem {
+                    label: s.to_string(),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    ..Default::default()
+                }))
                 .collect();
             Ok(Some(CompletionResponse::Array(items)))
         }
