@@ -699,11 +699,18 @@ impl LanguageServer for Backend {
         }
 
         if node.prev_sibling().is_some() {
-            // Completion (local|global) variables
-            Ok(Some(CompletionResponse::Array(vec![CompletionItem {
-                label: "matched".to_string(),
-                ..Default::default()
-            }])))
+            // Completion global variables
+            let globals = globals(&src_tree);
+            Ok(Some(CompletionResponse::Array(
+                globals
+                    .iter()
+                    .map(|s| CompletionItem {
+                        label: s.to_string(),
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        ..Default::default()
+                    })
+                    .collect(),
+            )))
         } else {
             // Completion keywords
             const KEYWORDS: &[&str] = &[
