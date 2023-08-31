@@ -43,10 +43,10 @@ function activate(context) {
 
         const terminal = vscode.window.createTerminal({
           name: "egglog",
-          shellPath: "sh",
+          shellPath: "bash",
           shellArgs: [
             "-c",
-            `egglog ${relativeFile} ; echo "\nPress return key to exit" ; read dummy`,
+            `egglog ${relativeFile} ; printf "\nPress any key to close..." ; read -n 1 -s`,
           ],
         });
         terminal.show();
@@ -61,10 +61,10 @@ function activate(context) {
 
         const terminal = vscode.window.createTerminal({
           name: "egglog desugar",
-          shellPath: "sh",
+          shellPath: "bash",
           shellArgs: [
             "-c",
-            `egglog --desugar ${relativeFile} ; echo "\nPress return key to exit" ; read dummy`,
+            `egglog --desugar ${relativeFile} ; printf "\nPress any key to close..." ; read -n 1 -s`,
           ],
         });
         terminal.show();
