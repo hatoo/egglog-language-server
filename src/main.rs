@@ -258,7 +258,7 @@ fn globals(src_tree: &SrcTree) -> Vec<String> {
         .unwrap(),
         Query::new(
             tree_sitter_egglog::language(),
-            r#"(command "declare" (ident))"#,
+            r#"(command "declare" (ident) @name)"#,
         )
         .unwrap(),
     ];
