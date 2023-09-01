@@ -44,6 +44,10 @@
             {
                 "title": "egglog desugar",
                 "command": "egglog.egglog_desugar"
+            },
+            {
+                "title": "egglog dot preview",
+                "command": "egglog.egglog_dot_preview"
             }
         ],
         "keybindings": [
@@ -55,6 +59,11 @@
             {
                 "command": "egglog.egglog_desugar",
                 "key": "F8",
+                "when": "editorLangId == 'egglog'"
+            },
+            {
+                "command": "egglog.egglog_dot_preview",
+                "key": "F9",
                 "when": "editorLangId == 'egglog'"
             }
         ]

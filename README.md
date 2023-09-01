@@ -6,6 +6,7 @@ A language server and VScode extension for [egglog](https://github.com/egraphs-g
 
 - [x] Press F7 to run egglog file
 - [x] Press F8 to desugar egglog file
+- [x] Press F9 to run egglog file with `--to-dot` and show dot file
 - [x] Syntax highlighting
 - [x] Prser Diagnostics
 - [x] Formatting
