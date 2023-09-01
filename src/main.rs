@@ -349,7 +349,11 @@ impl LanguageServer for Backend {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
-                    trigger_characters: Some(vec!["(".to_string(), " ".to_string()]),
+                    trigger_characters: Some(vec![
+                        "(".to_string(),
+                        " ".to_string(),
+                        ":".to_string(),
+                    ]),
                     work_done_progress_options: Default::default(),
                     all_commit_characters: None,
                     completion_item: None,
@@ -746,7 +750,39 @@ impl LanguageServer for Backend {
             }
         }
 
-        if node.prev_sibling().is_some() {
+        if node
+            .utf8_text(src_tree.src.as_bytes())
+            .unwrap()
+            .starts_with(':')
+        {
+            if let Some(command) = node.parent() {
+                if let Some(node) = command.child(1) {
+                    let command_name = node.utf8_text(src_tree.src.as_bytes()).unwrap();
+
+                    let attrs: &[&str] = match command_name {
+                        "function" => &["cost", "unextractable", "on_merge", "merge", "default"],
+                        "rule" => &["ruleset", "name"],
+                        "rewrite" | "birewrite" => &["when", "ruleset"],
+                        "run" => &["until"],
+                        "query-extract" => &["variants"],
+                        _ => return Ok(None),
+                    };
+
+                    return Ok(Some(CompletionResponse::Array(
+                        attrs
+                            .iter()
+                            .map(|a| CompletionItem {
+                                label: a.to_string(),
+                                kind: Some(CompletionItemKind::FIELD),
+                                ..Default::default()
+                            })
+                            .collect(),
+                    )));
+                }
+            }
+
+            Ok(None)
+        } else if node.prev_sibling().is_some() {
             // Completion global variables
             let globals = globals(&src_tree);
             Ok(Some(CompletionResponse::Array(
