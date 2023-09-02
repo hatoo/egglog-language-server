@@ -676,6 +676,17 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        fn is_root_command(mut node: Node) -> bool {
+            while node.kind() != "callexpr" {
+                let Some(p) = node.parent() else {
+                    break;
+                };
+                node = p;
+            }
+
+            node.parent().and_then(|p| p.parent()).map(|p| p.kind()) == Some("command")
+        }
+
         const BUILTIN_TYPES: &[&str] = &[
             // types
             "i64", "f64", "Map", "Rational", "String",
@@ -755,6 +766,7 @@ impl LanguageServer for Backend {
             .unwrap()
             .starts_with(':')
         {
+            // Attributes
             if let Some(command) = node.parent() {
                 if let Some(node) = command.child(1) {
                     let command_name = node.utf8_text(src_tree.src.as_bytes()).unwrap();
@@ -789,8 +801,6 @@ impl LanguageServer for Backend {
                 globals
                     .iter()
                     .map(|s| s.as_str())
-                    .chain(BUILTIN_TYPES.iter().copied())
-                    .chain(BUILTIN.iter().copied())
                     .map(|s| CompletionItem {
                         label: s.to_string(),
                         kind: Some(CompletionItemKind::FUNCTION),
@@ -798,7 +808,7 @@ impl LanguageServer for Backend {
                     })
                     .collect(),
             )))
-        } else {
+        } else if is_root_command(node) {
             // Completion keywords
             const KEYWORDS: &[&str] = &[
                 "set-option",
@@ -844,20 +854,27 @@ impl LanguageServer for Backend {
                     kind: Some(CompletionItemKind::KEYWORD),
                     ..Default::default()
                 })
-                .chain(
-                    globals
-                        .iter()
-                        .map(|s| s.as_str())
-                        .chain(BUILTIN_TYPES.iter().copied())
-                        .chain(BUILTIN.iter().copied())
-                        .map(|s| CompletionItem {
-                            label: s.to_string(),
-                            kind: Some(CompletionItemKind::FUNCTION),
-                            ..Default::default()
-                        }),
-                )
+                .chain(globals.iter().map(|s| s.as_str()).map(|s| CompletionItem {
+                    label: s.to_string(),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    ..Default::default()
+                }))
                 .collect();
             Ok(Some(CompletionResponse::Array(items)))
+        } else {
+            let globals = globals(&src_tree);
+            Ok(Some(CompletionResponse::Array(
+                globals
+                    .iter()
+                    .map(|s| s.as_str())
+                    .chain(BUILTIN.iter().copied())
+                    .map(|s| CompletionItem {
+                        label: s.to_string(),
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        ..Default::default()
+                    })
+                    .collect(),
+            )))
         }
     }
 }
