@@ -281,6 +281,38 @@ fn globals(src_tree: &SrcTree) -> Vec<String> {
         .collect()
 }
 
+fn global_types(src_tree: &SrcTree) -> Vec<String> {
+    let queries = &[
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "datatype" (ident) @name)"#,
+        )
+        .unwrap(),
+        Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "sort" (ident) @name)"#,
+        )
+        .unwrap(),
+    ];
+
+    queries
+        .iter()
+        .flat_map(|q| {
+            let mut cursor = QueryCursor::new();
+            cursor
+                .matches(q, src_tree.tree.root_node(), src_tree.src.as_bytes())
+                .map(|m| {
+                    m.captures[0]
+                        .node
+                        .utf8_text(src_tree.src.as_bytes())
+                        .unwrap()
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 impl Backend {
     async fn on_change(&self, params: TextDocumentItem) -> Result<()> {
         let language = tree_sitter_egglog::language();
@@ -795,19 +827,39 @@ impl LanguageServer for Backend {
 
             Ok(None)
         } else if node.prev_sibling().is_some() {
+            // Triggerd by space
             // Completion global variables
-            let globals = globals(&src_tree);
-            Ok(Some(CompletionResponse::Array(
-                globals
-                    .iter()
-                    .map(|s| s.as_str())
-                    .map(|s| CompletionItem {
-                        label: s.to_string(),
-                        kind: Some(CompletionItemKind::FUNCTION),
-                        ..Default::default()
-                    })
-                    .collect(),
-            )))
+
+            if node.parent().map(|p| p.kind()) == Some("variant") {
+                // complete types
+                let global_types = global_types(&src_tree);
+
+                Ok(Some(CompletionResponse::Array(
+                    global_types
+                        .iter()
+                        .map(|s| s.as_str())
+                        .chain(BUILTIN_TYPES.iter().copied())
+                        .map(|s| CompletionItem {
+                            label: s.to_string(),
+                            kind: Some(CompletionItemKind::CLASS),
+                            ..Default::default()
+                        })
+                        .collect(),
+                )))
+            } else {
+                let globals = globals(&src_tree);
+                Ok(Some(CompletionResponse::Array(
+                    globals
+                        .iter()
+                        .map(|s| s.as_str())
+                        .map(|s| CompletionItem {
+                            label: s.to_string(),
+                            kind: Some(CompletionItemKind::FUNCTION),
+                            ..Default::default()
+                        })
+                        .collect(),
+                )))
+            }
         } else if is_root_command(node) {
             // Completion keywords
             const KEYWORDS: &[&str] = &[
