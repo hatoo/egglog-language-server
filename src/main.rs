@@ -455,7 +455,7 @@ impl LanguageServer for Backend {
         let language = tree_sitter_egglog::language();
         let mut language_config =
             HighlightConfiguration::new(language, tree_sitter_egglog::HIGHLIGHTS_QUERY, "", "")
-                .map_err(|_| Error::internal_error())?;
+                .map_err(|_| Error::invalid_params("Failed to load highlighter"))?;
 
         language_config.configure(TS_HIGHLIGHT_NAMES);
 
