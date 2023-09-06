@@ -16,6 +16,7 @@ A language server and VScode extension for [egglog](https://github.com/egraphs-g
 - [x] Completion
     - [x] Keywords
     - [x] Global variables
+- [x] GOTO Definition
 
 ## Installation
 

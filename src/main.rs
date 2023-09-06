@@ -390,6 +390,7 @@ impl LanguageServer for Backend {
                     all_commit_characters: None,
                     completion_item: None,
                 }),
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -928,6 +929,125 @@ impl LanguageServer for Backend {
                     .collect(),
             )))
         }
+    }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        self.client
+            .log_message(MessageType::INFO, "goto_definition")
+            .await;
+
+        let src_tree = self
+            .document_map
+            .get(&params.text_document_position_params.text_document.uri)
+            .ok_or_else(|| Error::invalid_params("unknown uri"))?;
+
+        let root = src_tree.tree.root_node();
+        let p = tree_sitter::Point {
+            row: params.text_document_position_params.position.line as _,
+            column: params.text_document_position_params.position.character as _,
+        };
+        let Some(node) = root.descendant_for_point_range(p, p) else {
+            return Ok(None);
+        };
+
+        if node.kind() != "ident" && node.kind() != "type" {
+            return Ok(None);
+        }
+
+        let ident = node.utf8_text(src_tree.src.as_bytes()).unwrap();
+
+        // TODO: DRY
+        let queries = &[
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "datatype" (ident) @name (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "datatype" (variant (ident) @name) (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "relation" (ident) @name (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "function" (ident) @name (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "let" (ident) @name (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "sort" (ident) @name (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+            Query::new(
+                tree_sitter_egglog::language(),
+                &format!(
+                    r#"(command "declare" (ident) @name (#eq? @name "{}")) @command"#,
+                    ident
+                ),
+            )
+            .unwrap(),
+        ];
+
+        for query in queries {
+            let mut cursor = QueryCursor::new();
+            let Some((capture, _)) = cursor
+                .captures(query, src_tree.tree.root_node(), src_tree.src.as_bytes())
+                .next()
+            else {
+                continue;
+            };
+
+            let m = capture.captures[0].node;
+
+            let range = Range {
+                start: Position {
+                    line: m.start_position().row as u32,
+                    character: m.start_position().column as u32,
+                },
+                end: Position {
+                    line: m.end_position().row as u32,
+                    character: m.end_position().column as u32,
+                },
+            };
+
+            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: params.text_document_position_params.text_document.uri,
+                range,
+            })));
+        }
+
+        Ok(None)
     }
 }
 
