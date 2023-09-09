@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-use tree_sitter::{Node, Parser, Query, QueryCursor, Tree};
+use tree_sitter::Node;
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
 
 mod src_tree;
@@ -203,9 +203,6 @@ impl LanguageServer for Backend {
             .document_map
             .get(&params.text_document.uri)
             .ok_or_else(Error::internal_error)?;
-
-        let mut parser = Parser::new();
-        parser.set_language(language).unwrap();
 
         let tree = &src_tree.tree;
         let root_node = tree.root_node();
