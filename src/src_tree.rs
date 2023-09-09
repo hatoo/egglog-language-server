@@ -342,14 +342,34 @@ impl SrcTree {
 
     pub fn completion(&self, pos: Point) -> Vec<CompletionItem> {
         fn is_root_command(mut node: Node) -> bool {
-            while node.kind() != "callexpr" {
-                let Some(p) = node.parent() else {
-                    break;
-                };
-                node = p;
+            if node.kind() == "rparen" {
+                if let Some(p) = node.prev_sibling() {
+                    node = p;
+                }
             }
 
-            node.parent().and_then(|p| p.parent()).map(|p| p.kind()) == Some("command")
+            node.prev_sibling().is_none() && {
+                if let Some(p) = node.parent() {
+                    p.is_error()
+                        && (p.parent().map(|p| p.kind()) == Some("source_file") || {
+                            if let Some(mut p) = p.next_sibling() {
+                                if p.kind() == "ws" {
+                                    if let Some(q) = p.next_sibling() {
+                                        p = q;
+                                    } else {
+                                        return false;
+                                    }
+                                }
+
+                                p.is_error()
+                            } else {
+                                false
+                            }
+                        })
+                } else {
+                    false
+                }
+            }
         }
 
         const BUILTIN_TYPES: &[&str] = &[
