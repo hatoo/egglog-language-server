@@ -6,7 +6,10 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 use tree_sitter::{Node, Parser, Query, QueryCursor, Tree};
 use tree_sitter_highlight::{Highlight, HighlightConfiguration, HighlightEvent, Highlighter};
-use tree_sitter_traversal::{traverse, Order};
+
+mod src_tree;
+
+use src_tree::SrcTree;
 
 // Token types for language server side
 pub const LSP_LEGEND_TYPE: &[SemanticTokenType] = &[
@@ -35,13 +38,6 @@ const TS_HIGHLIGHT_NAMES: &[&str] = &[
 ];
 
 #[derive(Debug)]
-struct SrcTree {
-    src: String,
-    // Must be always matched to `src`
-    tree: Tree,
-}
-
-#[derive(Debug)]
 struct Backend {
     client: Client,
     document_map: DashMap<Url, SrcTree>,
@@ -51,157 +47,6 @@ struct TextDocumentItem {
     uri: Url,
     text: String,
     version: i32,
-}
-
-fn diagnstics(src_tree: &SrcTree) -> anyhow::Result<Vec<Diagnostic>> {
-    let src = &src_tree.src;
-    let tree = &src_tree.tree;
-    let root_node = tree.root_node();
-
-    // Fixme: Better traverse
-    Ok(traverse(root_node.walk(), Order::Post)
-        .filter(|n| n.is_error() || n.is_missing())
-        .map(|node| {
-            let start = node.start_position();
-            let end = node.end_position();
-            let message = if node.has_error() && node.is_missing() {
-                node.to_sexp()
-                    .trim_start_matches('(')
-                    .trim_end_matches(')')
-                    .to_string()
-            } else {
-                let mut cursor = node.walk();
-                format!(
-                    "Unexpected token(s) {}",
-                    node.children(&mut cursor)
-                        .filter_map(|n| n.utf8_text(src.as_bytes()).ok())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            };
-            Diagnostic {
-                range: Range {
-                    start: Position {
-                        line: start.row as u32,
-                        character: start.column as u32,
-                    },
-                    end: Position {
-                        line: end.row as u32,
-                        character: end.column as u32,
-                    },
-                },
-                severity: Some(DiagnosticSeverity::ERROR),
-                message,
-                ..Default::default()
-            }
-        })
-        .collect())
-}
-
-fn formatting(src_tree: &SrcTree, tab_width: usize) -> anyhow::Result<String> {
-    let language = tree_sitter_egglog::language();
-    let mut parser = Parser::new();
-    parser.set_language(language)?;
-
-    let src = &src_tree.src;
-    let tree = &src_tree.tree;
-    let root_node = tree.root_node();
-
-    let mut buf = String::new();
-    let cursor = root_node.walk();
-
-    {
-        // FIXME: Many ad-hocs, I don't like this codes.
-        use std::fmt::Write;
-
-        let mut emptyline = true;
-        let mut last_kind = "";
-        let mut paren_level = 0;
-        for n in traverse(cursor, Order::Pre)
-            .filter(|n| n.child_count() == 0)
-            .skip_while(|n| n.kind() == "ws")
-        {
-            let text = n.utf8_text(src.as_bytes())?;
-
-            match text {
-                text if n.kind() == "lparen" => {
-                    if last_kind == "lparen" {
-                        write!(buf, "{}", text)?;
-                    } else if emptyline {
-                        for _ in 0..tab_width * paren_level {
-                            write!(buf, " ")?;
-                        }
-                        write!(buf, "{}", text)?;
-                    } else if last_kind == "rparen" && paren_level == 0 {
-                        writeln!(buf)?;
-                        write!(buf, "{}", text)?;
-                    } else {
-                        write!(buf, " {}", text)?;
-                    }
-                    emptyline = false;
-                    paren_level += 1;
-                }
-                text if n.kind() == "rparen" => {
-                    paren_level = paren_level.saturating_sub(1);
-                    if emptyline {
-                        for _ in 0..tab_width * paren_level {
-                            write!(buf, " ")?;
-                        }
-                    }
-                    write!(buf, "{}", text)?;
-                    emptyline = false;
-                }
-                text if n.kind() == "comment" => {
-                    if emptyline {
-                        for _ in 0..tab_width * paren_level {
-                            write!(buf, " ")?;
-                        }
-                    } else {
-                        write!(buf, " ")?;
-                    }
-                    writeln!(buf, "{}", text)?;
-                    emptyline = true;
-                }
-                text if n.kind() == "ws" => {
-                    let newlines = text.chars().filter(|&c| c == '\n').count();
-                    let n = if emptyline { 1 } else { 0 };
-
-                    for _ in n..newlines {
-                        writeln!(buf)?;
-                        emptyline = true;
-                    }
-
-                    if !emptyline {
-                        continue;
-                    }
-                }
-                text => {
-                    if last_kind == "lparen" {
-                        write!(buf, "{}", text)?;
-                    } else {
-                        if emptyline {
-                            for _ in 0..tab_width * paren_level {
-                                write!(buf, " ")?;
-                            }
-                        } else {
-                            write!(buf, " ")?;
-                        }
-                        write!(buf, "{}", text)?;
-                    }
-                    emptyline = false;
-                }
-            }
-
-            last_kind = n.kind();
-        }
-    }
-
-    while buf.ends_with('\n') {
-        buf.pop();
-    }
-    buf.push('\n');
-
-    Ok(buf)
 }
 
 fn desugar(src: &str) -> anyhow::Result<String> {
@@ -224,122 +69,16 @@ fn desugar(src: &str) -> anyhow::Result<String> {
     Ok(String::from_utf8(output.stdout)?)
 }
 
-fn globals(src_tree: &SrcTree) -> Vec<String> {
-    let queries = &[
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "datatype" (ident) @name)"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "datatype" (variant (ident) @name))"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "relation" (ident) @name)"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "function" (ident) @name)"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "let" (ident) @name)"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "sort" (ident) @name)"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "declare" (ident) @name)"#,
-        )
-        .unwrap(),
-    ];
-
-    queries
-        .iter()
-        .flat_map(|q| {
-            let mut cursor = QueryCursor::new();
-            cursor
-                .matches(q, src_tree.tree.root_node(), src_tree.src.as_bytes())
-                .map(|m| {
-                    m.captures[0]
-                        .node
-                        .utf8_text(src_tree.src.as_bytes())
-                        .unwrap()
-                        .to_string()
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect()
-}
-
-fn global_types(src_tree: &SrcTree) -> Vec<String> {
-    let queries = &[
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "datatype" (ident) @name)"#,
-        )
-        .unwrap(),
-        Query::new(
-            tree_sitter_egglog::language(),
-            r#"(command "sort" (ident) @name)"#,
-        )
-        .unwrap(),
-    ];
-
-    queries
-        .iter()
-        .flat_map(|q| {
-            let mut cursor = QueryCursor::new();
-            cursor
-                .matches(q, src_tree.tree.root_node(), src_tree.src.as_bytes())
-                .map(|m| {
-                    m.captures[0]
-                        .node
-                        .utf8_text(src_tree.src.as_bytes())
-                        .unwrap()
-                        .to_string()
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect()
-}
-
 impl Backend {
-    async fn on_change(&self, params: TextDocumentItem) -> Result<()> {
-        let language = tree_sitter_egglog::language();
-        let mut parser = Parser::new();
-        parser
-            .set_language(language)
-            .map_err(|_| Error::internal_error())?;
-
-        // TODO: Support partial edit
-        let tree = parser
-            .parse(&params.text, None)
-            .ok_or_else(Error::parse_error)?;
-
-        let src_tree = SrcTree {
-            tree,
-            src: params.text,
-        };
-
-        let diagnostics = diagnstics(&src_tree).map_err(|_| Error::internal_error())?;
+    async fn on_change(&self, params: TextDocumentItem) {
+        // TODO: Support incremental update
+        let src_tree = SrcTree::new(params.text);
+        let diagnostics = src_tree.diagnstics();
 
         self.document_map.insert(params.uri.clone(), src_tree);
-
         self.client
             .publish_diagnostics(params.uri, diagnostics, Some(params.version))
             .await;
-
-        Ok(())
     }
 }
 
@@ -535,8 +274,7 @@ impl LanguageServer for Backend {
             .document_map
             .get(&params.text_document.uri)
             .ok_or_else(Error::internal_error)?;
-        let fmt = formatting(&src_tree, params.options.tab_size as usize)
-            .map_err(|_| Error::internal_error())?;
+        let fmt = src_tree.formatted(params.options.tab_size as usize);
 
         let lines = src_tree.tree.root_node().end_position().row;
 
@@ -582,88 +320,6 @@ impl LanguageServer for Backend {
             })
         }
 
-        fn definition<'a>(node: Node, tree: &Tree, src: &'a str) -> Option<&'a str> {
-            if node.kind() != "ident" && node.kind() != "type" {
-                return None;
-            }
-
-            let ident = node.utf8_text(src.as_bytes()).ok()?;
-
-            // TODO: I think these can be 'static.
-            let queries = &[
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "datatype" (ident) @name (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "datatype" (variant (ident) @name) (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "relation" (ident) @name (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "function" (ident) @name (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "let" (ident) @name (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "sort" (ident) @name (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-                Query::new(
-                    tree_sitter_egglog::language(),
-                    &format!(
-                        r#"(command "declare" (ident) @name (#eq? @name "{}")) @command"#,
-                        ident
-                    ),
-                )
-                .unwrap(),
-            ];
-
-            for query in queries {
-                let mut cursor = QueryCursor::new();
-                let Some((capture, _)) = cursor
-                    .captures(query, tree.root_node(), src.as_bytes())
-                    .next()
-                else {
-                    continue;
-                };
-
-                return capture.captures[0].node.utf8_text(src.as_bytes()).ok();
-            }
-
-            None
-        }
-
         let pos = params.text_document_position_params;
 
         let src_tree = self
@@ -684,7 +340,8 @@ impl LanguageServer for Backend {
 
         let mut markdown = String::new();
 
-        if let Some(definition) = definition(node, &src_tree.tree, &src_tree.src) {
+        if let Some(definition) = src_tree.definition(node) {
+            let definition = definition.utf8_text(src_tree.src.as_bytes()).unwrap();
             markdown.push_str(&format!(
                 "#### Definition\n\n```egglog\n{}\n```\n",
                 definition
@@ -833,7 +490,7 @@ impl LanguageServer for Backend {
 
             if node.parent().map(|p| p.kind()) == Some("variant") {
                 // complete types
-                let global_types = global_types(&src_tree);
+                let global_types = src_tree.global_types();
 
                 Ok(Some(CompletionResponse::Array(
                     global_types
@@ -848,7 +505,7 @@ impl LanguageServer for Backend {
                         .collect(),
                 )))
             } else {
-                let globals = globals(&src_tree);
+                let globals = src_tree.globals_all();
                 Ok(Some(CompletionResponse::Array(
                     globals
                         .iter()
@@ -898,7 +555,7 @@ impl LanguageServer for Backend {
                 "extract",
             ];
 
-            let globals = globals(&src_tree);
+            let globals = src_tree.globals_all();
 
             let items = KEYWORDS
                 .iter()
@@ -915,7 +572,7 @@ impl LanguageServer for Backend {
                 .collect();
             Ok(Some(CompletionResponse::Array(items)))
         } else {
-            let globals = globals(&src_tree);
+            let globals = src_tree.globals_all();
             Ok(Some(CompletionResponse::Array(
                 globals
                     .iter()
@@ -953,101 +610,25 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        if node.kind() != "ident" && node.kind() != "type" {
-            return Ok(None);
-        }
-
-        let ident = node.utf8_text(src_tree.src.as_bytes()).unwrap();
-
-        // TODO: DRY
-        let queries = &[
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "datatype" (ident) @name (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "datatype" (variant (ident) @name) (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "relation" (ident) @name (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "function" (ident) @name (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "let" (ident) @name (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "sort" (ident) @name (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-            Query::new(
-                tree_sitter_egglog::language(),
-                &format!(
-                    r#"(command "declare" (ident) @name (#eq? @name "{}")) @command"#,
-                    ident
-                ),
-            )
-            .unwrap(),
-        ];
-
-        for query in queries {
-            let mut cursor = QueryCursor::new();
-            let Some((capture, _)) = cursor
-                .captures(query, src_tree.tree.root_node(), src_tree.src.as_bytes())
-                .next()
-            else {
-                continue;
-            };
-
-            let m = capture.captures[0].node;
-
+        if let Some(def) = src_tree.definition(node) {
             let range = Range {
                 start: Position {
-                    line: m.start_position().row as u32,
-                    character: m.start_position().column as u32,
+                    line: def.start_position().row as u32,
+                    character: def.start_position().column as u32,
                 },
                 end: Position {
-                    line: m.end_position().row as u32,
-                    character: m.end_position().column as u32,
+                    line: def.end_position().row as u32,
+                    character: def.end_position().column as u32,
                 },
             };
 
-            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+            Ok(Some(GotoDefinitionResponse::Scalar(Location {
                 uri: params.text_document_position_params.text_document.uri,
                 range,
-            })));
+            })))
+        } else {
+            Ok(None)
         }
-
-        Ok(None)
     }
 }
 
