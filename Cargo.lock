@@ -84,9 +84,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bytes"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
+checksum = "a2bd12c1caf447e69cd4528f47f94d203fd2582878ecb9e9465484c4148a8223"
 
 [[package]]
 name = "cc"
@@ -777,7 +777,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-egglog"
 version = "0.0.1"
-source = "git+https://github.com/hatoo/tree-sitter-egglog.git#1859fc65defcc2a5eaf0e686d33eecd8c549415f"
+source = "git+https://github.com/hatoo/tree-sitter-egglog.git#3882ea0aa9ff692d37d16a85adcb5bb6394661ed"
 dependencies = [
  "cc",
  "tree-sitter",
