@@ -363,65 +363,6 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        fn is_root_command(mut node: Node) -> bool {
-            while node.kind() != "callexpr" {
-                let Some(p) = node.parent() else {
-                    break;
-                };
-                node = p;
-            }
-
-            node.parent().and_then(|p| p.parent()).map(|p| p.kind()) == Some("command")
-        }
-
-        const BUILTIN_TYPES: &[&str] = &[
-            // types
-            "i64", "f64", "Map", "Rational", "String",
-        ];
-        const BUILTIN: &[&str] = &[
-            // functions
-            "map",
-            "rational",
-            // i64
-            "+",
-            "-",
-            "*",
-            "/",
-            "%",
-            "&",
-            "|",
-            "<<",
-            ">>",
-            "not-i64",
-            "<",
-            ">",
-            "<=",
-            ">=",
-            "min",
-            "max",
-            "log2",
-            "to-f64",
-            "to-string",
-            // f64
-            "neg",
-            "to-i64",
-            // map
-            "empty",
-            "insert",
-            "get",
-            "not-contains",
-            "contains",
-            "set-uniton",
-            "set-diff",
-            "set-intersect",
-            "map-remove",
-            // rational
-            "abs",
-            "pow",
-            "log",
-            "sqrt",
-        ];
-
         self.client
             .log_message(MessageType::INFO, "completion")
             .await;
@@ -433,155 +374,17 @@ impl LanguageServer for Backend {
             .get(uri)
             .ok_or_else(Error::internal_error)?;
 
-        let root = src_tree.tree.root_node();
-
         let pos = tree_sitter::Point {
             row: params.text_document_position.position.line as _,
             column: params.text_document_position.position.character as _,
         };
 
-        let mut node = root.named_descendant_for_point_range(pos, pos).unwrap();
+        let items = src_tree.completion(pos);
 
-        if node.kind() == "rparen" {
-            if let Some(p) = node.prev_sibling() {
-                node = p;
-            }
-        }
-
-        if node
-            .utf8_text(src_tree.src.as_bytes())
-            .unwrap()
-            .starts_with(':')
-        {
-            // Attributes
-            if let Some(command) = node.parent() {
-                if let Some(node) = command.child(1) {
-                    let command_name = node.utf8_text(src_tree.src.as_bytes()).unwrap();
-
-                    let attrs: &[&str] = match command_name {
-                        "function" => &["cost", "unextractable", "on_merge", "merge", "default"],
-                        "rule" => &["ruleset", "name"],
-                        "rewrite" | "birewrite" => &["when", "ruleset"],
-                        "run" => &["until"],
-                        "query-extract" => &["variants"],
-                        _ => return Ok(None),
-                    };
-
-                    return Ok(Some(CompletionResponse::Array(
-                        attrs
-                            .iter()
-                            .map(|a| CompletionItem {
-                                label: a.to_string(),
-                                kind: Some(CompletionItemKind::FIELD),
-                                ..Default::default()
-                            })
-                            .collect(),
-                    )));
-                }
-            }
-
+        if items.is_empty() {
             Ok(None)
-        } else if node.prev_sibling().is_some() {
-            // Triggerd by space
-            // Completion global variables
-
-            if node.parent().map(|p| p.kind()) == Some("variant") {
-                // complete types
-                let global_types = src_tree.global_types();
-
-                Ok(Some(CompletionResponse::Array(
-                    global_types
-                        .iter()
-                        .map(|s| s.as_str())
-                        .chain(BUILTIN_TYPES.iter().copied())
-                        .map(|s| CompletionItem {
-                            label: s.to_string(),
-                            kind: Some(CompletionItemKind::CLASS),
-                            ..Default::default()
-                        })
-                        .collect(),
-                )))
-            } else {
-                let globals = src_tree.globals_all();
-                Ok(Some(CompletionResponse::Array(
-                    globals
-                        .iter()
-                        .map(|s| s.as_str())
-                        .map(|s| CompletionItem {
-                            label: s.to_string(),
-                            kind: Some(CompletionItemKind::FUNCTION),
-                            ..Default::default()
-                        })
-                        .collect(),
-                )))
-            }
-        } else if is_root_command(node) {
-            // Completion keywords
-            const KEYWORDS: &[&str] = &[
-                "set-option",
-                "datatype",
-                "sort",
-                "function",
-                "declare",
-                "relation",
-                "ruleset",
-                "rule",
-                "rewrite",
-                "birewrite",
-                "let",
-                "run",
-                "simplify",
-                "add-ruleset",
-                "calc",
-                "query-extract",
-                "check",
-                "check-proof",
-                "run-schedule",
-                "push",
-                "pop",
-                "print-table",
-                "print-size",
-                "input",
-                "output",
-                "fail",
-                "include",
-                "set",
-                "delete",
-                "union",
-                "panic",
-                "extract",
-            ];
-
-            let globals = src_tree.globals_all();
-
-            let items = KEYWORDS
-                .iter()
-                .map(|k| CompletionItem {
-                    label: k.to_string(),
-                    kind: Some(CompletionItemKind::KEYWORD),
-                    ..Default::default()
-                })
-                .chain(globals.iter().map(|s| s.as_str()).map(|s| CompletionItem {
-                    label: s.to_string(),
-                    kind: Some(CompletionItemKind::FUNCTION),
-                    ..Default::default()
-                }))
-                .collect();
-            Ok(Some(CompletionResponse::Array(items)))
         } else {
-            let globals = src_tree.globals_all();
-            Ok(Some(CompletionResponse::Array(
-                globals
-                    .iter()
-                    .map(|s| s.as_str())
-                    .chain(BUILTIN.iter().copied())
-                    .map(|s| CompletionItem {
-                        label: s.to_string(),
-                        kind: Some(CompletionItemKind::FUNCTION),
-                        ..Default::default()
-                    })
-                    .collect(),
-            )))
+            Ok(Some(CompletionResponse::Array(items)))
         }
     }
 
