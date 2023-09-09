@@ -342,9 +342,11 @@ impl SrcTree {
 
     pub fn completion(&self, pos: Point) -> Vec<CompletionItem> {
         fn is_root_command(mut node: Node) -> bool {
-            if node.kind() == "rparen" {
-                if let Some(p) = node.prev_sibling() {
-                    node = p;
+            while node.kind() == "lparen" || node.kind() == "rparen" || node.kind() == "ws" {
+                if let Some(n) = node.prev_sibling() {
+                    node = n;
+                } else {
+                    break;
                 }
             }
 
