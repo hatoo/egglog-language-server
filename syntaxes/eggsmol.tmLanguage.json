@@ -23,7 +23,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control",
-					"match": "\\b(birewrite|calc|check|clear|clear-rules|datatype|declare|define|delete|extract|fail|function|include|input|let|panic|pop|print-size|print-table|print|push|query|relation|repeat|rewrite|rule|run-schedule|run|set|sort|union)\\b"
+					"match": "\\b(birewrite|calc|check|clear|clear-rules|datatype|declare|define|delete|extract|fail|function|include|input|let|panic|pop|print-stats|print-size|print-table|print|push|query|relation|repeat|rewrite|rule|run-schedule|run|set|sort|union)\\b"
 				}
 			]
 		},

@@ -513,6 +513,7 @@ impl SrcTree {
                 "check",
                 "check-proof",
                 "run-schedule",
+                "print-stats",
                 "push",
                 "pop",
                 "print-table",
