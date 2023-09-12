@@ -204,11 +204,11 @@ impl LanguageServer for Backend {
             .get(&params.text_document.uri)
             .ok_or_else(Error::internal_error)?;
 
-        let tree = &src_tree.tree;
+        let tree = src_tree.tree();
         let root_node = tree.root_node();
 
         let highlights = highlighter
-            .highlight(&language_config, src_tree.src.as_bytes(), None, |_| None)
+            .highlight(&language_config, src_tree.src().as_bytes(), None, |_| None)
             .map_err(|_| Error::internal_error())?;
 
         let mut current_hightlight: Option<Highlight> = None;
@@ -273,7 +273,7 @@ impl LanguageServer for Backend {
             .ok_or_else(Error::internal_error)?;
         let fmt = src_tree.formatted(params.options.tab_size as usize);
 
-        let lines = src_tree.tree.root_node().end_position().row;
+        let lines = src_tree.tree().root_node().end_position().row;
 
         Ok(Some(vec![TextEdit {
             range: Range {
@@ -324,7 +324,7 @@ impl LanguageServer for Backend {
             .get(&pos.text_document.uri)
             .ok_or_else(|| Error::invalid_params("unknown uri"))?;
 
-        let root = src_tree.tree.root_node();
+        let root = src_tree.tree().root_node();
 
         let posisiton = tree_sitter::Point {
             row: pos.position.line as _,
@@ -338,14 +338,14 @@ impl LanguageServer for Backend {
         let mut markdown = String::new();
 
         if let Some(definition) = src_tree.definition(node) {
-            let definition = definition.utf8_text(src_tree.src.as_bytes()).unwrap();
+            let definition = definition.utf8_text(src_tree.src().as_bytes()).unwrap();
             markdown.push_str(&format!(
                 "#### Definition\n\n```egglog\n{}\n```\n",
                 definition
             ));
         }
 
-        if let Some(desugar_result) = desugar_node(node, &src_tree.src) {
+        if let Some(desugar_result) = desugar_node(node, src_tree.src()) {
             markdown.push_str(&format!(
                 "#### Desugar\n\n```egglog\n{}\n```",
                 desugar_result
@@ -401,7 +401,7 @@ impl LanguageServer for Backend {
             .get(&params.text_document_position_params.text_document.uri)
             .ok_or_else(|| Error::invalid_params("unknown uri"))?;
 
-        let root = src_tree.tree.root_node();
+        let root = src_tree.tree().root_node();
         let p = tree_sitter::Point {
             row: params.text_document_position_params.position.line as _,
             column: params.text_document_position_params.position.character as _,

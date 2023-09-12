@@ -4,9 +4,9 @@ use tree_sitter_traversal::traverse;
 
 #[derive(Debug)]
 pub struct SrcTree {
-    pub src: String,
+    src: String,
     // Must be always matched to `src`
-    pub tree: Tree,
+    tree: Tree,
 }
 
 impl SrcTree {
@@ -23,6 +23,14 @@ impl SrcTree {
             .expect("Error parsing egglog source");
 
         Self { src, tree }
+    }
+
+    pub fn src(&self) -> &str {
+        &self.src
+    }
+
+    pub fn tree(&self) -> &Tree {
+        &self.tree
     }
 
     pub fn global_types(&self) -> Vec<String> {
