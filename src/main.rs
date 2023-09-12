@@ -177,10 +177,12 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "file saved!")
             .await;
     }
-    async fn did_close(&self, _: DidCloseTextDocumentParams) {
+    async fn did_close(&self, param: DidCloseTextDocumentParams) {
         self.client
             .log_message(MessageType::INFO, "file closed!")
             .await;
+
+        self.document_map.remove(&param.text_document.uri);
     }
 
     async fn semantic_tokens_full(
@@ -353,13 +355,13 @@ impl LanguageServer for Backend {
         }
 
         if markdown.is_empty() {
-            return Ok(None);
+            Ok(None)
+        } else {
+            Ok(Some(Hover {
+                contents: HoverContents::Scalar(MarkedString::String(markdown)),
+                range: None,
+            }))
         }
-
-        Ok(Some(Hover {
-            contents: HoverContents::Scalar(MarkedString::String(markdown)),
-            range: None,
-        }))
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
