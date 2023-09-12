@@ -560,3 +560,19 @@ impl SrcTree {
         Vec::new()
     }
 }
+
+#[test]
+fn test_diagnostic() {
+    fn has_error(src: String) -> bool {
+        let src_tree = SrcTree::new(src);
+
+        !src_tree.diagnstics().is_empty()
+    }
+
+    assert!(has_error("(sort)".to_string()));
+    assert!(!has_error("(sort X)".to_string()));
+
+    assert!(has_error("(declare)".to_string()));
+    assert!(has_error("(declare x)".to_string()));
+    assert!(!has_error("(declare x T)".to_string()));
+}
