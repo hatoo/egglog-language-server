@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::process::Stdio;
 use std::sync::RwLock;
 
@@ -92,8 +93,7 @@ impl Backend {
             .and_then(|root| root.join(path).ok())
     }
 
-    fn load(&self, path: &str) -> Option<Ref<Url, SrcTree>> {
-        let url = self.url(path)?;
+    fn load(&self, url: &Url) -> Option<Ref<Url, SrcTree>> {
         self.document_map
             .entry(url.clone())
             .or_try_insert_with(|| {
@@ -104,6 +104,33 @@ impl Backend {
             .map(|rm| rm.downgrade())
             .ok()
     }
+
+    fn definition(&self, url: Url, ident: &str) -> Option<String> {
+        let mut visited = HashSet::new();
+
+        let mut stack = vec![url];
+
+        while let Some(url) = stack.pop() {
+            if visited.contains(&url) {
+                continue;
+            }
+            if let Some(src_tree) = self.load(&url) {
+                if let Some(node) = src_tree.definition(ident) {
+                    let src = src_tree.src();
+                    return Some(node.utf8_text(src.as_bytes()).unwrap().to_string());
+                }
+
+                for path in src_tree.includes() {
+                    if let Some(url) = self.url(&path) {
+                        stack.push(url);
+                    }
+                }
+            }
+            visited.insert(url);
+        }
+
+        None
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -111,7 +138,14 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         *self.workspace.write().unwrap() = params
             .workspace_folders
-            .and_then(|v| v.get(0).map(|w| w.uri.clone()));
+            .and_then(|v| v.get(0).map(|w| w.uri.clone()))
+            .map(|url| {
+                let mut s = url.to_string();
+                if !s.ends_with('/') {
+                    s.push('/');
+                }
+                Url::parse(s.as_str()).unwrap()
+            });
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -367,19 +401,30 @@ impl LanguageServer for Backend {
 
         let mut markdown = String::new();
 
-        if let Some(definition) = src_tree.definition(node) {
-            let definition = definition.utf8_text(src_tree.src().as_bytes()).unwrap();
+        let desugar_result = desugar_node(node, src_tree.src());
+
+        let ident = if node.kind() == "ident" || node.kind() == "type" {
+            Some(
+                node.utf8_text(src_tree.src().as_bytes())
+                    .unwrap()
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+        drop(src_tree);
+
+        if let Some(definition) =
+            ident.and_then(|ident| self.definition(pos.text_document.uri.clone(), &ident))
+        {
             markdown.push_str(&format!(
                 "#### Definition\n\n```egglog\n{}\n```\n",
                 definition
             ));
         }
 
-        if let Some(desugar_result) = desugar_node(node, src_tree.src()) {
-            markdown.push_str(&format!(
-                "#### Desugar\n\n```egglog\n{}\n```",
-                desugar_result
-            ));
+        if let Some(desugared) = desugar_result {
+            markdown.push_str(&format!("#### Desugar\n\n```egglog\n{}\n```", desugared));
         }
 
         if markdown.is_empty() {
@@ -440,7 +485,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        if let Some(def) = src_tree.definition(node) {
+        if let Some(def) = src_tree.definition(node.utf8_text(src_tree.src().as_bytes()).unwrap()) {
             let range = Range {
                 start: Position {
                     line: def.start_position().row as u32,

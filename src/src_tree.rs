@@ -267,12 +267,11 @@ impl SrcTree {
             .collect()
     }
 
-    pub fn definition(&self, node: Node) -> Option<Node> {
-        if node.kind() != "ident" && node.kind() != "type" {
+    pub fn definition(&self, ident: &str) -> Option<Node> {
+        if ident.contains('"') || ident.contains('\\') {
             return None;
         }
 
-        let ident = node.utf8_text(self.src.as_bytes()).unwrap();
         let queries = &[
             Query::new(
                 tree_sitter_egglog::language(),
