@@ -1,7 +1,8 @@
 use std::process::Stdio;
+use std::sync::RwLock;
 
+use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
-use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -82,12 +83,33 @@ impl Backend {
             .publish_diagnostics(params.uri, diagnostics, Some(params.version))
             .await;
     }
+
+    fn url(&self, path: &str) -> Option<Url> {
+        self.workspace
+            .read()
+            .unwrap()
+            .as_ref()
+            .and_then(|root| root.join(path).ok())
+    }
+
+    fn load(&self, path: &str) -> Option<Ref<Url, SrcTree>> {
+        let url = self.url(path)?;
+        self.document_map
+            .entry(url.clone())
+            .or_try_insert_with(|| {
+                let src = std::fs::read_to_string(url.path())?;
+                let src_tree = SrcTree::new(src);
+                std::io::Result::Ok(src_tree)
+            })
+            .map(|rm| rm.downgrade())
+            .ok()
+    }
 }
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        *self.workspace.write().await = params
+        *self.workspace.write().unwrap() = params
             .workspace_folders
             .and_then(|v| v.get(0).map(|w| w.uri.clone()));
 
