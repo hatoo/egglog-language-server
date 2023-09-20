@@ -53,6 +53,12 @@ struct TextDocumentItem {
     version: i32,
 }
 
+struct Definition {
+    src: String,
+    url: Url,
+    range: Range,
+}
+
 fn desugar(src: &str) -> anyhow::Result<String> {
     use std::io::Write;
 
@@ -105,7 +111,7 @@ impl Backend {
             .ok()
     }
 
-    fn definition(&self, url: Url, ident: &str) -> Option<String> {
+    fn definition(&self, url: Url, ident: &str) -> Option<Definition> {
         let mut visited = HashSet::new();
 
         let mut stack = vec![url];
@@ -117,7 +123,21 @@ impl Backend {
             if let Some(src_tree) = self.load(&url) {
                 if let Some(node) = src_tree.definition(ident) {
                     let src = src_tree.src();
-                    return Some(node.utf8_text(src.as_bytes()).unwrap().to_string());
+                    let src = node.utf8_text(src.as_bytes()).unwrap().to_string();
+                    let start = node.start_position();
+                    let end = node.end_position();
+                    let range = Range {
+                        start: Position {
+                            line: start.row as _,
+                            character: start.column as _,
+                        },
+                        end: Position {
+                            line: end.row as _,
+                            character: end.column as _,
+                        },
+                    };
+
+                    return Some(Definition { src, url, range });
                 }
 
                 for path in src_tree.includes() {
@@ -419,7 +439,7 @@ impl LanguageServer for Backend {
         {
             markdown.push_str(&format!(
                 "#### Definition\n\n```egglog\n{}\n```\n",
-                definition
+                definition.src
             ));
         }
 
@@ -485,21 +505,24 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        if let Some(def) = src_tree.definition(node.utf8_text(src_tree.src().as_bytes()).unwrap()) {
-            let range = Range {
-                start: Position {
-                    line: def.start_position().row as u32,
-                    character: def.start_position().column as u32,
-                },
-                end: Position {
-                    line: def.end_position().row as u32,
-                    character: def.end_position().column as u32,
-                },
-            };
+        if node.kind() != "ident" && node.kind() != "type" {
+            return Ok(None);
+        }
 
+        let ident = node
+            .utf8_text(src_tree.src().as_bytes())
+            .unwrap()
+            .to_string();
+
+        drop(src_tree);
+
+        if let Some(def) = self.definition(
+            params.text_document_position_params.text_document.uri,
+            &ident,
+        ) {
             Ok(Some(GotoDefinitionResponse::Scalar(Location {
-                uri: params.text_document_position_params.text_document.uri,
-                range,
+                uri: def.url,
+                range: def.range,
             })))
         } else {
             Ok(None)
