@@ -568,6 +568,28 @@ impl SrcTree {
 
         Vec::new()
     }
+
+    pub fn includes(&self) -> Vec<String> {
+        let query = Query::new(
+            tree_sitter_egglog::language(),
+            r#"(command "include" (string) @path)"#,
+        )
+        .unwrap();
+
+        let mut cursor = QueryCursor::new();
+        cursor
+            .captures(&query, self.tree.root_node(), self.src.as_bytes())
+            .map(|(capture, _)| {
+                capture.captures[0]
+                    .node
+                    .utf8_text(self.src.as_bytes())
+                    .unwrap()
+                    .trim_start_matches('"')
+                    .trim_end_matches('"')
+                    .to_string()
+            })
+            .collect()
+    }
 }
 
 #[test]
