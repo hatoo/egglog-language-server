@@ -1,6 +1,7 @@
 use std::process::Stdio;
 
 use dashmap::DashMap;
+use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::{Error, Result};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -40,6 +41,7 @@ const TS_HIGHLIGHT_NAMES: &[&str] = &[
 #[derive(Debug)]
 struct Backend {
     client: Client,
+    workspace: RwLock<Option<Url>>,
     document_map: DashMap<Url, SrcTree>,
 }
 
@@ -84,7 +86,11 @@ impl Backend {
 
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
-    async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
+    async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
+        *self.workspace.write().await = params
+            .workspace_folders
+            .and_then(|v| v.get(0).map(|w| w.uri.clone()));
+
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
@@ -441,6 +447,7 @@ async fn main() {
 
     let (service, socket) = LspService::new(|client| Backend {
         client,
+        workspace: RwLock::new(None),
         document_map: DashMap::new(),
     });
     Server::new(stdin, stdout, socket).serve(service).await;
