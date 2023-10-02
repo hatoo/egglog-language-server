@@ -42,15 +42,13 @@ function activate(context) {
       document.save().then(() => {
         const relativeFile = document.uri.fsPath;
 
-        const terminal = vscode.window.createTerminal({
-          name: "egglog",
-          shellPath: "bash",
-          shellArgs: [
-            "-c",
-            `egglog ${relativeFile} ; printf "\nPress any key to close..." ; read -n 1 -s`,
-          ],
-        });
-        terminal.show();
+        let process_exec = new vscode.ProcessExecution("egglog", [
+          relativeFile
+        ]);
+
+        const task = new vscode.Task({ type: "egglog" }, vscode.TaskScope.Workspace, "egglog", "egglog", process_exec);
+
+        vscode.tasks.executeTask(task);
       });
     })
   );
@@ -60,15 +58,14 @@ function activate(context) {
       document.save().then(() => {
         const relativeFile = document.uri.fsPath;
 
-        const terminal = vscode.window.createTerminal({
-          name: "egglog desugar",
-          shellPath: "bash",
-          shellArgs: [
-            "-c",
-            `egglog --desugar ${relativeFile} ; printf "\nPress any key to close..." ; read -n 1 -s`,
-          ],
-        });
-        terminal.show();
+        let process_exec = new vscode.ProcessExecution("egglog", [
+          "--desugar",
+          relativeFile
+        ]);
+
+        const task = new vscode.Task({ type: "egglog" }, vscode.TaskScope.Workspace, "egglog-desugar", "egglog", process_exec);
+
+        vscode.tasks.executeTask(task);
       });
     })
   );
