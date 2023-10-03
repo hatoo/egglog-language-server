@@ -46,7 +46,9 @@ function activate(context) {
           relativeFile
         ]);
 
-        const task = new vscode.Task({ type: "egglog" }, vscode.TaskScope.Workspace, "egglog", "egglog", process_exec);
+        const task = new vscode.Task({ type: "process" }, vscode.TaskScope.Workspace, "egglog", "egglog", process_exec);
+        // https://github.com/microsoft/vscode/issues/157756
+        task.definition.command = "egglog";
 
         vscode.tasks.executeTask(task);
       });
@@ -63,7 +65,8 @@ function activate(context) {
           relativeFile
         ]);
 
-        const task = new vscode.Task({ type: "egglog" }, vscode.TaskScope.Workspace, "egglog-desugar", "egglog", process_exec);
+        const task = new vscode.Task({ type: "process" }, vscode.TaskScope.Workspace, "egglog-desugar", "egglog", process_exec);
+        task.definition.command = "egglog";
 
         vscode.tasks.executeTask(task);
       });
