@@ -383,7 +383,7 @@ impl SrcTree {
 
         const BUILTIN_TYPES: &[&str] = &[
             // types
-            "i64", "f64", "Map", "Rational", "String",
+            "Unit", "bool", "i64", "f64", "Map", "Rational", "String",
         ];
         const BUILTIN: &[&str] = &[
             // functions
@@ -514,7 +514,6 @@ impl SrcTree {
                 "let",
                 "run",
                 "simplify",
-                "add-ruleset",
                 "calc",
                 "query-extract",
                 "check",
@@ -523,7 +522,7 @@ impl SrcTree {
                 "print-stats",
                 "push",
                 "pop",
-                "print-table",
+                "print-function",
                 "print-size",
                 "input",
                 "output",
