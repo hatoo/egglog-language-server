@@ -158,7 +158,7 @@ impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         *self.workspace.write().unwrap() = params
             .workspace_folders
-            .and_then(|v| v.get(0).map(|w| w.uri.clone()))
+            .and_then(|v| v.first().map(|w| w.uri.clone()))
             .map(|url| {
                 let mut s = url.to_string();
                 if !s.ends_with('/') {
