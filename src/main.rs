@@ -74,7 +74,7 @@ fn desugar(src: &str) -> anyhow::Result<String> {
     let output = child.wait_with_output()?;
 
     if !output.status.success() {
-        anyhow::bail!("child proccess fail");
+        anyhow::bail!("child process fail");
     }
     Ok(String::from_utf8(output.stdout)?)
 }
@@ -83,7 +83,7 @@ impl Backend {
     async fn on_change(&self, params: TextDocumentItem) {
         // TODO: Support incremental update
         let src_tree = SrcTree::new(params.text);
-        let diagnostics = src_tree.diagnstics();
+        let diagnostics = src_tree.diagnostics();
 
         self.document_map.insert(params.uri.clone(), src_tree);
         self.client
@@ -295,7 +295,7 @@ impl LanguageServer for Backend {
             .highlight(&language_config, src_tree.src().as_bytes(), None, |_| None)
             .map_err(|_| Error::internal_error())?;
 
-        let mut current_hightlight: Option<Highlight> = None;
+        let mut current_highlight: Option<Highlight> = None;
         let mut pre_line = 0;
         let mut pre_start = 0;
         let semantic_tokens = highlights
@@ -314,7 +314,7 @@ impl LanguageServer for Backend {
                     } else {
                         start
                     };
-                    if let Some(t) = current_hightlight {
+                    if let Some(t) = current_highlight {
                         let ret = Some(SemanticToken {
                             delta_line,
                             delta_start,
@@ -330,11 +330,11 @@ impl LanguageServer for Backend {
                     }
                 }
                 HighlightEvent::HighlightStart(highlight) => {
-                    current_hightlight = Some(highlight);
+                    current_highlight = Some(highlight);
                     None
                 }
                 HighlightEvent::HighlightEnd => {
-                    current_hightlight = None;
+                    current_highlight = None;
                     None
                 }
             })
@@ -410,14 +410,14 @@ impl LanguageServer for Backend {
 
         let root = src_tree.tree().root_node();
 
-        let posisiton = tree_sitter::Point {
+        let position = tree_sitter::Point {
             row: pos.position.line as _,
             column: pos.position.character as _,
         };
 
         let node = root
-            .descendant_for_point_range(posisiton, posisiton)
-            .ok_or_else(|| Error::invalid_params("Postion out of range"))?;
+            .descendant_for_point_range(position, position)
+            .ok_or_else(|| Error::invalid_params("Position out of range"))?;
 
         let mut markdown = String::new();
 

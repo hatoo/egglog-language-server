@@ -222,7 +222,7 @@ impl SrcTree {
         buf
     }
 
-    pub fn diagnstics(&self) -> Vec<Diagnostic> {
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
         let src = &self.src;
         let tree = &self.tree;
         let root_node = tree.root_node();
@@ -595,7 +595,7 @@ fn test_diagnostic() {
     fn has_error(src: String) -> bool {
         let src_tree = SrcTree::new(src);
 
-        !src_tree.diagnstics().is_empty()
+        !src_tree.diagnostics().is_empty()
     }
 
     assert!(has_error("(sort)".to_string()));
