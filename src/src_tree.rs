@@ -360,6 +360,12 @@ impl SrcTree {
             // functions
             "map",
             "rational",
+            // bool
+            "not",
+            "and",
+            "or",
+            "xor",
+            "=>",
             // i64
             "+",
             "-",
@@ -375,6 +381,11 @@ impl SrcTree {
             ">",
             "<=",
             ">=",
+            "bool-=",
+            "bool-<",
+            "bool->",
+            "bool-<=",
+            "bool->=",
             "min",
             "max",
             "log2",
