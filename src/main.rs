@@ -63,7 +63,7 @@ fn desugar(src: &str) -> anyhow::Result<String> {
     use std::io::Write;
 
     let mut child = std::process::Command::new("egglog")
-        .args(["--desugar", "/dev/stdin"])
+        .args(["--show", "desugared-egglog", "/dev/stdin"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
