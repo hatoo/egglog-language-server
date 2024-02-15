@@ -425,6 +425,8 @@ impl SrcTree {
             // rational
             "abs",
             "pow",
+            "numer",
+            "denom",
             "log",
             "sqrt",
         ];
