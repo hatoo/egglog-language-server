@@ -229,7 +229,7 @@ impl SrcTree {
 
         // Fixme: Better traverse
         traverse(root_node.walk(), tree_sitter_traversal::Order::Post)
-            .filter(|n| n.is_error() || n.is_missing())
+            .filter(|n| n.is_error() || n.is_missing() || n.kind() == "top_parens")
             .map(|node| {
                 let start = node.start_position();
                 let end = node.end_position();
@@ -348,37 +348,8 @@ impl SrcTree {
     }
 
     pub fn completion(&self, pos: Point) -> Vec<CompletionItem> {
-        fn is_root_command(mut node: Node) -> bool {
-            while node.kind() == "lparen" || node.kind() == "rparen" || node.kind() == "ws" {
-                if let Some(n) = node.prev_sibling() {
-                    node = n;
-                } else {
-                    break;
-                }
-            }
-
-            node.prev_sibling().is_none() && {
-                if let Some(p) = node.parent() {
-                    p.is_error()
-                        && (p.parent().map(|p| p.kind()) == Some("source_file") || {
-                            if let Some(mut p) = p.next_sibling() {
-                                if p.kind() == "ws" {
-                                    if let Some(q) = p.next_sibling() {
-                                        p = q;
-                                    } else {
-                                        return false;
-                                    }
-                                }
-
-                                p.is_error()
-                            } else {
-                                false
-                            }
-                        })
-                } else {
-                    false
-                }
-            }
+        fn is_root_command(node: Node) -> bool {
+            node.parent().map(|p| p.kind()) == Some("top_parens")
         }
 
         const BUILTIN_TYPES: &[&str] = &[
