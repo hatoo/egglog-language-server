@@ -545,6 +545,11 @@ impl SrcTree {
                     kind: Some(CompletionItemKind::FUNCTION),
                     ..Default::default()
                 })
+                .chain(vec!["true", "false"].into_iter().map(|s| CompletionItem {
+                    label: s.to_string(),
+                    kind: Some(CompletionItemKind::VARIABLE),
+                    ..Default::default()
+                }))
                 .collect();
         }
 
