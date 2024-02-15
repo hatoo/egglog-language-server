@@ -418,7 +418,7 @@ impl SrcTree {
             "get",
             "not-contains",
             "contains",
-            "set-uniton",
+            "set-union",
             "set-diff",
             "set-intersect",
             "map-remove",
