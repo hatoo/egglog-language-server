@@ -427,6 +427,9 @@ impl SrcTree {
             "denom",
             "log",
             "sqrt",
+            // string
+            "count-matches",
+            "replace",
         ];
 
         let root = self.tree.root_node();
