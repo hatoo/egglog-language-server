@@ -598,3 +598,24 @@ fn test_diagnostic() {
     assert!(has_error("(declare x)".to_string()));
     assert!(!has_error("(declare x T)".to_string()));
 }
+
+#[test]
+fn test_completion() {
+    fn completion(src: &str, pos: Point, label: &str) {
+        let src_tree = SrcTree::new(src.to_string());
+
+        src_tree
+            .completion(pos)
+            .into_iter()
+            .find(|c| c.label == label)
+            .unwrap();
+    }
+    fn root_command(src: &str, pos: Point) {
+        completion(src, pos, "run");
+    }
+
+    root_command("()", Point { row: 0, column: 1 });
+    root_command("(let x 1)\n()", Point { row: 1, column: 1 });
+    root_command("(let x 1)\n()\n(run 100)", Point { row: 1, column: 1 });
+    completion("(run 100 :)", Point { row: 0, column: 10 }, "until");
+}
