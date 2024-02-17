@@ -453,7 +453,7 @@ impl SrcTree {
                 }
             }
         } else if node.prev_sibling().is_some() {
-            // Triggerd by space
+            // Triggered by space
             // Completion global variables
 
             if node.parent().map(|p| p.kind()) == Some("variant") {
