@@ -610,7 +610,7 @@ fn test_diagnostic() {
 
 #[test]
 fn test_completion() {
-    fn completion(src: &str, pos: Point, label: &str) {
+    fn complete(src: &str, pos: Point, label: &str) {
         let src_tree = SrcTree::new(src.to_string());
 
         src_tree
@@ -620,7 +620,7 @@ fn test_completion() {
             .unwrap();
     }
     fn root_command(src: &str, pos: Point) {
-        completion(src, pos, "run");
+        complete(src, pos, "run");
     }
     fn complete_not(src: &str, pos: Point, label: &str) {
         let src_tree = SrcTree::new(src.to_string());
@@ -631,16 +631,22 @@ fn test_completion() {
             .find(|c| c.label == label)
             .is_none());
     }
+    fn not_complete(src: &str, pos: Point) {
+        let src_tree = SrcTree::new(src.to_string());
+
+        assert!(src_tree.completion(pos).is_empty());
+    }
 
     root_command("()", Point { row: 0, column: 1 });
     root_command("(let x 1)\n()", Point { row: 1, column: 1 });
     root_command("(let x 1)\n()\n(run 100)", Point { row: 1, column: 1 });
-    completion("(run 100 :)", Point { row: 0, column: 10 }, "until");
-    completion("(datatype A (X ))", Point { row: 0, column: 14 }, "i64");
-    completion(
+    complete("(run 100 :)", Point { row: 0, column: 10 }, "until");
+    complete("(datatype A (X ))", Point { row: 0, column: 14 }, "i64");
+    complete(
         "(sort S)\n(datatype A (X ))",
         Point { row: 1, column: 14 },
         "S",
     );
     complete_not("(function A ())", Point { row: 0, column: 13 }, "+");
+    not_complete("(function )", Point { row: 0, column: 10 });
 }
