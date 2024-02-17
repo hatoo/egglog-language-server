@@ -468,11 +468,12 @@ impl SrcTree {
                         .collect();
                 }
             }
+            Vec::new()
         } else if node.parent().map(|p| p.kind()) == Some("variant") || is_inner(node, "schema") {
             // complete types
             let global_types = self.global_types();
 
-            return global_types
+            global_types
                 .iter()
                 .map(|s| s.as_str())
                 .chain(BUILTIN_TYPES.iter().copied())
@@ -481,12 +482,12 @@ impl SrcTree {
                     kind: Some(CompletionItemKind::CLASS),
                     ..Default::default()
                 })
-                .collect();
+                .collect()
         } else if node.prev_sibling().is_some() {
             // Triggered by space
             // Completion global variables
             let globals = self.globals_all();
-            return globals
+            globals
                 .iter()
                 .map(|s| s.as_str())
                 .map(|s| CompletionItem {
@@ -494,7 +495,7 @@ impl SrcTree {
                     kind: Some(CompletionItemKind::FUNCTION),
                     ..Default::default()
                 })
-                .collect();
+                .collect()
         } else if is_root_command(node) {
             // Completion keywords
             const KEYWORDS: &[&str] = &[
@@ -534,7 +535,7 @@ impl SrcTree {
 
             let globals = self.globals_all();
 
-            return KEYWORDS
+            KEYWORDS
                 .iter()
                 .map(|k| CompletionItem {
                     label: k.to_string(),
@@ -546,10 +547,10 @@ impl SrcTree {
                     kind: Some(CompletionItemKind::FUNCTION),
                     ..Default::default()
                 }))
-                .collect();
+                .collect()
         } else {
             let globals = self.globals_all();
-            return globals
+            globals
                 .iter()
                 .map(|s| s.as_str())
                 .chain(BUILTIN.iter().copied())
@@ -563,10 +564,8 @@ impl SrcTree {
                     kind: Some(CompletionItemKind::VARIABLE),
                     ..Default::default()
                 }))
-                .collect();
+                .collect()
         }
-
-        Vec::new()
     }
 
     pub fn includes(&self) -> Vec<String> {
