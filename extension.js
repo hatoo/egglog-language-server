@@ -61,7 +61,7 @@ function activate(context) {
         const relativeFile = document.uri.fsPath;
 
         let process_exec = new vscode.ProcessExecution("egglog", [
-          "--desugar",
+          "--show", "desugared-egglog",
           relativeFile
         ]);
 
