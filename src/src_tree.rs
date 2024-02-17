@@ -351,6 +351,18 @@ impl SrcTree {
         fn is_root_command(node: Node) -> bool {
             node.parent().map(|p| p.kind()) == Some("top_parens")
         }
+        fn is_inner(mut node: Node, kind: &str) -> bool {
+            loop {
+                if node.kind() == kind {
+                    return true;
+                }
+                if let Some(p) = node.parent() {
+                    node = p;
+                } else {
+                    return false;
+                }
+            }
+        }
 
         const BUILTIN_TYPES: &[&str] = &[
             // types
@@ -456,36 +468,33 @@ impl SrcTree {
                         .collect();
                 }
             }
+        } else if node.parent().map(|p| p.kind()) == Some("variant") || is_inner(node, "schema") {
+            // complete types
+            let global_types = self.global_types();
+
+            return global_types
+                .iter()
+                .map(|s| s.as_str())
+                .chain(BUILTIN_TYPES.iter().copied())
+                .map(|s| CompletionItem {
+                    label: s.to_string(),
+                    kind: Some(CompletionItemKind::CLASS),
+                    ..Default::default()
+                })
+                .collect();
         } else if node.prev_sibling().is_some() {
             // Triggered by space
             // Completion global variables
-
-            if node.parent().map(|p| p.kind()) == Some("variant") {
-                // complete types
-                let global_types = self.global_types();
-
-                return global_types
-                    .iter()
-                    .map(|s| s.as_str())
-                    .chain(BUILTIN_TYPES.iter().copied())
-                    .map(|s| CompletionItem {
-                        label: s.to_string(),
-                        kind: Some(CompletionItemKind::CLASS),
-                        ..Default::default()
-                    })
-                    .collect();
-            } else {
-                let globals = self.globals_all();
-                return globals
-                    .iter()
-                    .map(|s| s.as_str())
-                    .map(|s| CompletionItem {
-                        label: s.to_string(),
-                        kind: Some(CompletionItemKind::FUNCTION),
-                        ..Default::default()
-                    })
-                    .collect();
-            }
+            let globals = self.globals_all();
+            return globals
+                .iter()
+                .map(|s| s.as_str())
+                .map(|s| CompletionItem {
+                    label: s.to_string(),
+                    kind: Some(CompletionItemKind::FUNCTION),
+                    ..Default::default()
+                })
+                .collect();
         } else if is_root_command(node) {
             // Completion keywords
             const KEYWORDS: &[&str] = &[
@@ -613,6 +622,15 @@ fn test_completion() {
     fn root_command(src: &str, pos: Point) {
         completion(src, pos, "run");
     }
+    fn complete_not(src: &str, pos: Point, label: &str) {
+        let src_tree = SrcTree::new(src.to_string());
+
+        assert!(src_tree
+            .completion(pos)
+            .into_iter()
+            .find(|c| c.label == label)
+            .is_none());
+    }
 
     root_command("()", Point { row: 0, column: 1 });
     root_command("(let x 1)\n()", Point { row: 1, column: 1 });
@@ -624,4 +642,5 @@ fn test_completion() {
         Point { row: 1, column: 14 },
         "S",
     );
+    complete_not("(function A ())", Point { row: 0, column: 13 }, "+");
 }
