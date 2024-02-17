@@ -618,4 +618,10 @@ fn test_completion() {
     root_command("(let x 1)\n()", Point { row: 1, column: 1 });
     root_command("(let x 1)\n()\n(run 100)", Point { row: 1, column: 1 });
     completion("(run 100 :)", Point { row: 0, column: 10 }, "until");
+    completion("(datatype A (X ))", Point { row: 0, column: 14 }, "i64");
+    completion(
+        "(sort S)\n(datatype A (X ))",
+        Point { row: 1, column: 14 },
+        "S",
+    );
 }
