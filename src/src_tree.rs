@@ -360,6 +360,10 @@ impl SrcTree {
             // functions
             "map",
             "rational",
+            // Not a function but add here
+            "=",
+            // Unit
+            "!=",
             // bool
             "not",
             "and",
