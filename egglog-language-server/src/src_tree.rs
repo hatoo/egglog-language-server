@@ -1,6 +1,5 @@
 use tower_lsp::lsp_types::*;
-use tree_sitter::{Node, Parser, Point, Query, QueryCursor, Tree};
-use tree_sitter_traversal::traverse;
+use tree_sitter::{Node, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
 
 #[derive(Debug)]
 pub struct SrcTree {
@@ -126,7 +125,7 @@ impl SrcTree {
         let root_node = tree.root_node();
 
         let mut buf = String::new();
-        let cursor = root_node.walk();
+        let mut cursor = root_node.walk();
 
         {
             // FIXME: Many ad-hocs, I don't like this codes.
@@ -135,10 +134,16 @@ impl SrcTree {
             let mut emptyline = true;
             let mut last_kind = "";
             let mut paren_level = 0;
-            for n in traverse(cursor, tree_sitter_traversal::Order::Pre)
-                .filter(|n| n.child_count() == 0)
-                .skip_while(|n| n.kind() == "ws")
-            {
+
+            while cursor.goto_first_child() {}
+            while cursor.node().kind() == "ws" {
+                if !next_leaf(&mut cursor) {
+                    break;
+                }
+            }
+
+            loop {
+                let n = cursor.node();
                 let text = n.utf8_text(src.as_bytes()).unwrap();
 
                 match text {
@@ -190,6 +195,9 @@ impl SrcTree {
                         }
 
                         if !emptyline {
+                            if !next_leaf(&mut cursor) {
+                                break;
+                            }
                             continue;
                         }
                     }
@@ -211,6 +219,9 @@ impl SrcTree {
                 }
 
                 last_kind = n.kind();
+                if !next_leaf(&mut cursor) {
+                    break;
+                }
             }
         }
 
@@ -227,28 +238,33 @@ impl SrcTree {
         let tree = &self.tree;
         let root_node = tree.root_node();
 
+        let mut diagnostics = Vec::new();
+
+        let mut stack = vec![root_node.walk()];
+
         // Fixme: Better traverse
-        traverse(root_node.walk(), tree_sitter_traversal::Order::Post)
-            .filter(|n| n.is_error() || n.is_missing() || n.kind() == "top_parens")
-            .map(|node| {
-                let start = node.start_position();
-                let end = node.end_position();
-                let message = if node.has_error() && node.is_missing() {
-                    node.to_sexp()
+        while let Some(mut cursor) = stack.pop() {
+            let n = cursor.node();
+
+            if n.is_error() || n.is_missing() || n.kind() == "top_parens" {
+                let start = n.start_position();
+                let end = n.end_position();
+                let message = if n.has_error() && n.is_missing() {
+                    n.to_sexp()
                         .trim_start_matches('(')
                         .trim_end_matches(')')
                         .to_string()
                 } else {
-                    let mut cursor = node.walk();
+                    let mut cursor = n.walk();
                     format!(
                         "Unexpected token(s) {}",
-                        node.children(&mut cursor)
+                        n.children(&mut cursor)
                             .filter_map(|n| n.utf8_text(src.as_bytes()).ok())
                             .collect::<Vec<_>>()
                             .join(", ")
                     )
                 };
-                Diagnostic {
+                diagnostics.push(Diagnostic {
                     range: Range {
                         start: Position {
                             line: start.row as u32,
@@ -262,9 +278,15 @@ impl SrcTree {
                     severity: Some(DiagnosticSeverity::ERROR),
                     message,
                     ..Default::default()
+                });
+            } else {
+                for child in n.children(&mut cursor) {
+                    stack.push(child.walk());
                 }
-            })
-            .collect()
+            }
+        }
+
+        diagnostics
     }
 
     pub fn definition(&self, ident: &str) -> Option<Node> {
@@ -594,20 +616,46 @@ impl SrcTree {
     }
 }
 
+fn next_leaf(cursor: &mut TreeCursor) -> bool {
+    loop {
+        if cursor.goto_next_sibling() {
+            while cursor.goto_first_child() {}
+            return true;
+        }
+        if cursor.goto_parent() {
+            continue;
+        }
+        return false;
+    }
+}
+
 #[test]
 fn test_diagnostic() {
-    fn has_error(src: String) -> bool {
-        let src_tree = SrcTree::new(src);
+    fn has_error(src: &str) -> bool {
+        let src_tree = SrcTree::new(src.to_string());
 
         !src_tree.diagnostics().is_empty()
     }
 
-    assert!(has_error("(sort)".to_string()));
-    assert!(!has_error("(sort X)".to_string()));
+    assert!(has_error("()"));
 
-    assert!(has_error("(declare)".to_string()));
-    assert!(has_error("(declare x)".to_string()));
-    assert!(!has_error("(declare x T)".to_string()));
+    assert!(has_error("(sort)"));
+    assert!(!has_error("(sort X)"));
+
+    assert!(has_error("(declare)"));
+    assert!(has_error("(declare x)"));
+    assert!(!has_error("(declare x T)"));
+}
+
+#[test]
+fn test_format() {
+    fn format(src: &str) -> String {
+        let src_tree = SrcTree::new(src.to_string());
+
+        src_tree.formatted(2)
+    }
+
+    assert_eq!(format("(  sort)"), "(sort)\n");
 }
 
 #[test]
