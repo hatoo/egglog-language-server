@@ -14,7 +14,7 @@ impl SrcTree {
         let language = tree_sitter_egglog::language();
         let mut parser = Parser::new();
         parser
-            .set_language(language)
+            .set_language(&language)
             .expect("Error loading egglog language");
 
         let tree = parser
@@ -36,12 +36,12 @@ impl SrcTree {
     pub fn global_types(&self) -> Vec<String> {
         let queries = &[
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "datatype" (ident) @name)"#,
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "sort" (ident) @name)"#,
             )
             .unwrap(),
@@ -69,27 +69,27 @@ impl SrcTree {
     pub fn global_idents(&self) -> Vec<String> {
         let queries = &[
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "datatype" (variant (ident) @name))"#,
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "relation" (ident) @name)"#,
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "function" (ident) @name)"#,
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "let" (ident) @name)"#,
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 r#"(command "declare" (ident) @name)"#,
             )
             .unwrap(),
@@ -274,7 +274,7 @@ impl SrcTree {
 
         let queries = &[
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "datatype" (ident) @name (#eq? @name "{}")) @command"#,
                     ident
@@ -282,7 +282,7 @@ impl SrcTree {
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "datatype" (variant (ident) @name) (#eq? @name "{}")) @command"#,
                     ident
@@ -290,7 +290,7 @@ impl SrcTree {
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "relation" (ident) @name (#eq? @name "{}")) @command"#,
                     ident
@@ -298,7 +298,7 @@ impl SrcTree {
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "function" (ident) @name (#eq? @name "{}")) @command"#,
                     ident
@@ -306,7 +306,7 @@ impl SrcTree {
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "let" (ident) @name (#eq? @name "{}")) @command"#,
                     ident
@@ -314,7 +314,7 @@ impl SrcTree {
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "sort" (ident) @name (#eq? @name "{}")) @command"#,
                     ident
@@ -322,7 +322,7 @@ impl SrcTree {
             )
             .unwrap(),
             Query::new(
-                tree_sitter_egglog::language(),
+                &tree_sitter_egglog::language(),
                 &format!(
                     r#"(command "declare" (ident) @name (#eq? @name "{}")) @command"#,
                     ident
@@ -573,7 +573,7 @@ impl SrcTree {
 
     pub fn includes(&self) -> Vec<String> {
         let query = Query::new(
-            tree_sitter_egglog::language(),
+            &tree_sitter_egglog::language(),
             r#"(command "include" (string) @path)"#,
         )
         .unwrap();
