@@ -9,7 +9,7 @@ edition = "2021"
 tokio = { version = "1.32.0", features = ["full"] }
 tower-lsp = "0.20.0"
 tree-sitter-egglog = { path = "../tree-sitter-egglog" }
-tree-sitter = "0.21.0"
-tree-sitter-highlight = "0.21.0"
+tree-sitter = "0.22.6"
+tree-sitter-highlight = "0.22.6"
 dashmap = "5.5.1"
 anyhow = "1.0.75"
