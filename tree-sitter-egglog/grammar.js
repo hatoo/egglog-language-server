@@ -93,6 +93,7 @@ module.exports = grammar({
           "rewrite",
           $.expr,
           $.expr,
+          optional(":subsume"),
           optional(seq(":when", list($, $.fact))),
           optional(seq(":ruleset", $.ident)),
           $.rparen
@@ -193,6 +194,7 @@ module.exports = grammar({
           $.rparen,
           $.rparen
         ),
+        seq($.lparen, "subsume", $.lparen, $.ident, repeat($.expr), $.rparen, $.rparen),
         seq($.lparen, "union", $.expr, $.expr, $.rparen),
         seq($.lparen, "panic", $.string, $.rparen),
         seq($.lparen, "extract", $.expr, $.rparen),

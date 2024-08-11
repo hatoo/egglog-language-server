@@ -550,6 +550,18 @@
               "type": "CHOICE",
               "members": [
                 {
+                  "type": "STRING",
+                  "value": ":subsume"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
                   "type": "SEQ",
                   "members": [
                     {
@@ -1455,6 +1467,42 @@
             {
               "type": "STRING",
               "value": "delete"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "lparen"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "ident"
+            },
+            {
+              "type": "REPEAT",
+              "content": {
+                "type": "SYMBOL",
+                "name": "expr"
+              }
+            },
+            {
+              "type": "SYMBOL",
+              "name": "rparen"
+            },
+            {
+              "type": "SYMBOL",
+              "name": "rparen"
+            }
+          ]
+        },
+        {
+          "type": "SEQ",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "lparen"
+            },
+            {
+              "type": "STRING",
+              "value": "subsume"
             },
             {
               "type": "SYMBOL",
