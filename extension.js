@@ -10,6 +10,7 @@ function activate(context) {
     const serverOptions = {
       command: "cargo",
       args: [
+        "+stable",
         "run",
         "--release",
         "--manifest-path",
