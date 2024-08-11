@@ -494,6 +494,10 @@
     "named": false
   },
   {
+    "type": ":subsume",
+    "named": false
+  },
+  {
     "type": ":unextractable",
     "named": false
   },
@@ -692,6 +696,10 @@
   {
     "type": "string",
     "named": true
+  },
+  {
+    "type": "subsume",
+    "named": false
   },
   {
     "type": "true",
