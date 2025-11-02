@@ -1,13 +1,30 @@
-use egglog::ast::{Command, ParseError};
+use std::error::Error;
+
+use egglog::{ast::ParseError, CommandOutput, EGraph};
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
+
+pub type EgglogResult<T> = Result<T, egglog::Error>;
+
+pub struct Egglog {
+    e_graph: EGraph,
+    error: Option<egglog::Error>,
+}
+
+impl std::fmt::Debug for Egglog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Egglog")
+            .field("error", &self.error)
+            .finish()
+    }
+}
 
 #[derive(Debug)]
 pub struct SrcTree {
     src: String,
     // Must be always matched to `src`
     tree: Tree,
-    commands: Result<Vec<Command>, ParseError>,
+    egglog: Egglog,
 }
 
 impl SrcTree {
@@ -23,13 +40,13 @@ impl SrcTree {
             // Not possible
             .expect("Error parsing egglog source");
 
-        let mut parser = egglog::ast::Parser::default();
-        let commands = parser.get_program_from_string(None, &src);
+        let mut e_graph = EGraph::default();
+        let error = e_graph.parse_and_run_program(None, &src).err();
 
         Self {
             src,
             tree,
-            commands,
+            egglog: Egglog { e_graph, error },
         }
     }
 
@@ -243,26 +260,33 @@ impl SrcTree {
     }
 
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        use egglog::ast::Span;
-        if let Err(ParseError(Span::Egglog(span), message)) = &self.commands {
-            vec![Diagnostic {
-                range: Range {
-                    start: Position {
-                        line: span.file.get_location(span.i).0 as u32 - 1,
-                        character: span.file.get_location(span.i).1 as u32 - 1,
+        if let Some(error) = &self.egglog.error {
+            let span = match error {
+                egglog::Error::ParseError(ParseError(span, _)) => Some(span),
+                // TODO: other error kinds
+                _ => None,
+            };
+
+            if let Some(egglog::ast::Span::Egglog(span)) = span {
+                return vec![Diagnostic {
+                    range: Range {
+                        start: Position {
+                            line: span.file.get_location(span.i).0 as u32 - 1,
+                            character: span.file.get_location(span.i).1 as u32 - 1,
+                        },
+                        end: Position {
+                            line: span.file.get_location(span.j).0 as u32 - 1,
+                            character: span.file.get_location(span.j).1 as u32 - 1,
+                        },
                     },
-                    end: Position {
-                        line: span.file.get_location(span.j).0 as u32 - 1,
-                        character: span.file.get_location(span.j).1 as u32 - 1,
-                    },
-                },
-                severity: Some(DiagnosticSeverity::ERROR),
-                message: message.clone(),
-                ..Default::default()
-            }]
-        } else {
-            Vec::new()
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    message: format!("{}", error),
+                    ..Default::default()
+                }];
+            }
         }
+
+        Vec::new()
     }
 
     pub fn definition(&self, ident: &str) -> Option<Node> {
