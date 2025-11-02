@@ -1,3 +1,4 @@
+use egglog::ast::{Command, ParseError};
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Parser, Point, Query, QueryCursor, Tree, TreeCursor};
 
@@ -6,6 +7,7 @@ pub struct SrcTree {
     src: String,
     // Must be always matched to `src`
     tree: Tree,
+    commands: Result<Vec<Command>, ParseError>,
 }
 
 impl SrcTree {
@@ -21,7 +23,14 @@ impl SrcTree {
             // Not possible
             .expect("Error parsing egglog source");
 
-        Self { src, tree }
+        let mut parser = egglog::ast::Parser::default();
+        let commands = parser.get_program_from_string(None, &src);
+
+        Self {
+            src,
+            tree,
+            commands,
+        }
     }
 
     pub fn src(&self) -> &str {
@@ -234,59 +243,26 @@ impl SrcTree {
     }
 
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
-        let src = &self.src;
-        let tree = &self.tree;
-        let root_node = tree.root_node();
-
-        let mut diagnostics = Vec::new();
-
-        let mut stack = vec![root_node.walk()];
-
-        // Fixme: Better traverse
-        while let Some(mut cursor) = stack.pop() {
-            let n = cursor.node();
-
-            if n.is_error() || n.is_missing() || n.kind() == "top_parens" {
-                let start = n.start_position();
-                let end = n.end_position();
-                let message = if n.has_error() && n.is_missing() {
-                    n.to_sexp()
-                        .trim_start_matches('(')
-                        .trim_end_matches(')')
-                        .to_string()
-                } else {
-                    let mut cursor = n.walk();
-                    format!(
-                        "Unexpected token(s) {}",
-                        n.children(&mut cursor)
-                            .filter_map(|n| n.utf8_text(src.as_bytes()).ok())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                };
-                diagnostics.push(Diagnostic {
-                    range: Range {
-                        start: Position {
-                            line: start.row as u32,
-                            character: start.column as u32,
-                        },
-                        end: Position {
-                            line: end.row as u32,
-                            character: end.column as u32,
-                        },
+        use egglog::ast::Span;
+        if let Err(ParseError(Span::Egglog(span), message)) = &self.commands {
+            vec![Diagnostic {
+                range: Range {
+                    start: Position {
+                        line: span.file.get_location(span.i).0 as u32 - 1,
+                        character: span.file.get_location(span.i).1 as u32 - 1,
                     },
-                    severity: Some(DiagnosticSeverity::ERROR),
-                    message,
-                    ..Default::default()
-                });
-            } else {
-                for child in n.children(&mut cursor) {
-                    stack.push(child.walk());
-                }
-            }
+                    end: Position {
+                        line: span.file.get_location(span.j).0 as u32 - 1,
+                        character: span.file.get_location(span.j).1 as u32 - 1,
+                    },
+                },
+                severity: Some(DiagnosticSeverity::ERROR),
+                message: message.clone(),
+                ..Default::default()
+            }]
+        } else {
+            Vec::new()
         }
-
-        diagnostics
     }
 
     pub fn definition(&self, ident: &str) -> Option<Node> {
