@@ -475,7 +475,7 @@ impl SrcTree {
                     let command_name = node.utf8_text(self.src.as_bytes()).unwrap();
 
                     let attrs: &[&str] = match command_name {
-                        "function" => &["cost", "unextractable", "on_merge", "merge", "default"],
+                        "function" => &["cost", "unextractable", "on_merge", "no-merge", "merge", "default"],
                         "rule" => &["ruleset", "name"],
                         "rewrite" | "birewrite" => &["when", "ruleset"],
                         "run" => &["until"],

@@ -318,6 +318,18 @@
               "type": "CHOICE",
               "members": [
                 {
+                  "type": "STRING",
+                  "value": ":no-merge"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            },
+            {
+              "type": "CHOICE",
+              "members": [
+                {
                   "type": "SEQ",
                   "members": [
                     {

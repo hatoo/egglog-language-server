@@ -365,6 +365,7 @@
   {
     "type": "source_file",
     "named": true,
+    "root": true,
     "fields": {},
     "children": {
       "multiple": true,
@@ -462,10 +463,6 @@
     }
   },
   {
-    "type": ",",
-    "named": false
-  },
-  {
     "type": "-inf",
     "named": false
   },
@@ -483,6 +480,10 @@
   },
   {
     "type": ":name",
+    "named": false
+  },
+  {
+    "type": ":no-merge",
     "named": false
   },
   {
@@ -522,14 +523,6 @@
     "named": false
   },
   {
-    "type": "[",
-    "named": false
-  },
-  {
-    "type": "]",
-    "named": false
-  },
-  {
     "type": "birewrite",
     "named": false
   },
@@ -547,7 +540,8 @@
   },
   {
     "type": "comment",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "datatype",
@@ -719,6 +713,7 @@
   },
   {
     "type": "ws",
-    "named": true
+    "named": true,
+    "extra": true
   }
 ]
